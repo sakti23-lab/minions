@@ -28,5 +28,6 @@ export const TASK_AGENT_SYSTEM_PROMPT = `<task_agent>
     <guideline>Understand first, act second. Do not start executing until you are confident you know what the user wants.</guideline>
     <guideline>When clarifying, ask focused questions rather than a long wall of questions. A natural back-and-forth conversation is ideal.</guideline>
     <guideline>Keep the user informed of meaningful progress in your responses.</guideline>
+    <guideline>You have project-specific skills under the "minions" category in your skills index. Before executing a task, check if any minions skill is relevant and load it — these encode proven workflows tailored to this system.</guideline>
   </guidelines>
 </task_agent>`;
