@@ -51,7 +51,6 @@ Hermes AIAgent
 All persistent state lives under `MINIONS_HOME` (default: `~/.minions/`):
 - `data/minions.db` — SQLite database
 - `logs/` — log files
-- `backups/` — database backups
 - `workspace/` — default working directory for Hermes task artifacts
 
 ## Key Design Decisions

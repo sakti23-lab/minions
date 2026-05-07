@@ -25,10 +25,6 @@ export function resolveMinionsLogsDir(): string {
   return join(resolveMinionsHome(), 'logs');
 }
 
-export function resolveMinionsBackupsDir(): string {
-  return join(resolveMinionsHome(), 'backups');
-}
-
 export function resolveMinionsWorkspaceDir(): string {
   return join(resolveMinionsHome(), 'workspace');
 }
@@ -43,7 +39,6 @@ export function ensureMinionsStateDirs(): void {
   const dbPath = resolveMinionsDbPath();
   mkdirSync(resolveMinionsDataDir(), { recursive: true });
   mkdirSync(resolveMinionsLogsDir(), { recursive: true });
-  mkdirSync(resolveMinionsBackupsDir(), { recursive: true });
   mkdirSync(resolveMinionsWorkspaceDir(), { recursive: true });
   mkdirSync(dirname(dbPath), { recursive: true });
 }
