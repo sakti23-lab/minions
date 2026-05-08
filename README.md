@@ -8,6 +8,12 @@ Minions gives you one screen for all of it.
 
 Create tasks through chat, and your Hermes agent works on them autonomously, running tools, spawning sessions, scheduling cron jobs. Automatic heartbeat check-ins tell you what's progressing, what's blocked, and what's ready for review. You supervise the board. The agent does the work.
 
+## Demo
+
+[![Minions demo showing a task board for autonomous Hermes Agent work](demo/minions-demo-poster.jpg)](demo/loom-minions.mp4)
+
+[Watch the 64-second demo](demo/loom-minions.mp4)
+
 ## Why Minions Exists
 
 The first agent task is fun. The tenth is operations.
