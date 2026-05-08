@@ -2,6 +2,7 @@
   "name": "minions",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "NODE_ENV=development tsx watch server/index.ts",

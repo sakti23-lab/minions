@@ -6,7 +6,7 @@ Hermes Agent is powerful, but running real work on it means juggling terminal se
 
 Minions gives you one screen to create, supervise, and review autonomous Hermes Agent work.
 
-[Try hosted on Agent37](https://www.agent37.com) · [Run locally](#quick-start) · [Watch demo](#demo)
+[Try hosted on Agent37](https://www.agent37.com)
 
 ## Demo
 
@@ -39,7 +39,7 @@ During a heartbeat, the Hermes session is asked to make progress, retry with a d
 
 ## Quick Start
 
-**Prerequisites:** Node.js 18+ and [Hermes Agent](https://hermes-agent.nousresearch.com) installed
+**Prerequisites:** Node.js 18+ and [Hermes Agent](https://hermes-agent.nousresearch.com)
 
 ```bash
 git clone https://github.com/Agent-3-7/hermes-agent-mission-control.git
@@ -48,15 +48,9 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:6969](http://localhost:6969), create a task, and send your first message.
+Open [http://localhost:6969](http://localhost:6969).
 
-Production build:
-
-```bash
-npm run prod
-```
-
-No `.env` file needed. Defaults work out of the box.
+No `.env` file needed. For production, run `npm run prod`.
 
 ## How It Works
 
@@ -87,16 +81,9 @@ Each task is a persistent Hermes root session. You talk to it, it works, it chec
 
 ## FAQ
 
-**Is this an official Hermes Agent project?**
-No. Minions is an independent open-source project built for Hermes Agent.
-
 **Can I use this with other agents?**
 Not yet. The adapter interface exists, but launch is Hermes-only. OpenClaw is next.
 
 ## Contributing
 
-Contributions welcome. See [CLAUDE.md](CLAUDE.md) for architecture and development details.
-
-## License
-
-MIT
+Contributions are welcome. Please open an issue first with the feature or change you have in mind and why it should be added. Once the approach is approved, create a PR. See [CLAUDE.md](CLAUDE.md) for architecture and development details.
