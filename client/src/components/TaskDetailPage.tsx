@@ -65,7 +65,7 @@ export function TaskDetailPage() {
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape' && !isEditableTarget(e)) navigate('/');
+      if (e.key === 'Escape' && !isEditableTarget(e.target)) navigate('/');
     }
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);

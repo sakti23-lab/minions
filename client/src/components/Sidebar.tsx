@@ -24,7 +24,7 @@ export function Sidebar() {
         return;
       }
 
-      if (isEditableTarget(e) || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+      if (isEditableTarget(e.target) || e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
 
       const key = e.key.toLowerCase();
 

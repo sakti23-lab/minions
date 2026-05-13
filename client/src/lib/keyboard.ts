@@ -1,6 +1,6 @@
-export function isEditableTarget(e: Event): boolean {
-  const el = e.target as HTMLElement;
-  return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable;
+export function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
 }
 
 export function handleChatKeyDown(e: React.KeyboardEvent, onSubmit: () => void) {
