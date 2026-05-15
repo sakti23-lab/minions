@@ -1,9 +1,8 @@
 import { existsSync, lstatSync, mkdirSync, readlinkSync, symlinkSync, unlinkSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { expandHomePrefix } from '../paths.js';
+import { resolveHermesHome } from '../paths.js';
 
 export interface BundledSkillMeta {
   id: string;
@@ -159,10 +158,7 @@ export function ensureBundledSkillsLinked(): void {
   const source = resolveBundledSkillsDir();
   if (!existsSync(source)) return;
 
-  const hermesHome = process.env.HERMES_HOME
-    ? expandHomePrefix(process.env.HERMES_HOME)
-    : join(homedir(), '.hermes');
-  const target = join(hermesHome, 'skills', 'minions');
+  const target = join(resolveHermesHome(), 'skills', 'minions');
   mkdirSync(dirname(target), { recursive: true });
 
   try {

@@ -621,14 +621,16 @@ function RoutinesList({
   );
 }
 
-function FieldLabel({ label, children }: { label: string; children: ReactNode }) {
+function FieldLabel({ label, className, children }: { label: string; className?: string; children: ReactNode }) {
   return (
-    <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400">
+    <label className={`block text-xs font-medium text-zinc-500 dark:text-zinc-400 ${className ?? ''}`}>
       {label}
       {children}
     </label>
   );
 }
+
+const INPUT_CLASS = 'mt-1 h-9 w-full rounded-md border border-zinc-200 bg-white px-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100';
 
 function TextInput({
   value,
@@ -652,8 +654,24 @@ function TextInput({
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
       autoFocus={autoFocus}
-      className={`mt-1 h-9 w-full rounded-md border border-zinc-200 bg-white px-2.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100 ${mono ? 'font-mono' : ''}`}
+      className={`${INPUT_CLASS} ${mono ? 'font-mono' : ''}`}
     />
+  );
+}
+
+function SelectInput({
+  value,
+  onChange,
+  children,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  children: ReactNode;
+}) {
+  return (
+    <select value={value} onChange={(event) => onChange(event.target.value)} className={INPUT_CLASS}>
+      {children}
+    </select>
   );
 }
 
@@ -772,20 +790,15 @@ function RoutineEditorPage({
           <section>
             <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Schedule</h3>
             <div className="mt-3 grid grid-cols-2 gap-3">
-              <label className="col-span-2 block text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                Preset
-                <select
-                  value={form.preset}
-                  onChange={(event) => patch({ preset: event.target.value as SchedulePreset })}
-                  className="mt-1 h-9 w-full rounded-md border border-zinc-200 bg-white px-2.5 text-sm text-zinc-900 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-                >
+              <FieldLabel label="Preset" className="col-span-2">
+                <SelectInput value={form.preset} onChange={(v) => patch({ preset: v as SchedulePreset })}>
                   <option value="weekdays">Weekdays</option>
                   <option value="daily">Daily</option>
                   <option value="weekly">Weekly</option>
                   <option value="interval">Every interval</option>
                   <option value="custom">Custom</option>
-                </select>
-              </label>
+                </SelectInput>
+              </FieldLabel>
 
               {(form.preset === 'weekdays' || form.preset === 'daily' || form.preset === 'weekly') && (
                 <FieldLabel label="At">
@@ -794,16 +807,11 @@ function RoutineEditorPage({
               )}
 
               {form.preset === 'weekly' && (
-                <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                  Day
-                  <select
-                    value={form.weekday}
-                    onChange={(event) => patch({ weekday: event.target.value })}
-                    className="mt-1 h-9 w-full rounded-md border border-zinc-200 bg-white px-2.5 text-sm text-zinc-900 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-                  >
+                <FieldLabel label="Day">
+                  <SelectInput value={form.weekday} onChange={(weekday) => patch({ weekday })}>
                     {WEEKDAYS.map((day, index) => <option key={day} value={index}>{day}</option>)}
-                  </select>
-                </label>
+                  </SelectInput>
+                </FieldLabel>
               )}
 
               {form.preset === 'interval' && (
@@ -811,31 +819,25 @@ function RoutineEditorPage({
                   <FieldLabel label="Every">
                     <TextInput type="number" value={form.intervalValue} onChange={(intervalValue) => patch({ intervalValue })} />
                   </FieldLabel>
-                  <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                    Unit
-                    <select
-                      value={form.intervalUnit}
-                      onChange={(event) => patch({ intervalUnit: event.target.value as IntervalUnit })}
-                      className="mt-1 h-9 w-full rounded-md border border-zinc-200 bg-white px-2.5 text-sm text-zinc-900 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-                    >
+                  <FieldLabel label="Unit">
+                    <SelectInput value={form.intervalUnit} onChange={(v) => patch({ intervalUnit: v as IntervalUnit })}>
                       <option value="m">Minutes</option>
                       <option value="h">Hours</option>
                       <option value="d">Days</option>
-                    </select>
-                  </label>
+                    </SelectInput>
+                  </FieldLabel>
                 </>
               )}
 
               {form.preset === 'custom' && (
-                <label className="col-span-2 block text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                  Cron expression
+                <FieldLabel label="Cron expression" className="col-span-2">
                   <TextInput
                     mono
                     value={form.rawSchedule}
                     onChange={(rawSchedule) => patch({ rawSchedule })}
                     placeholder="0 9 * * 1-5"
                   />
-                </label>
+                </FieldLabel>
               )}
             </div>
             <div className="mt-3 rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">
@@ -852,15 +854,14 @@ function RoutineEditorPage({
           <section className="border-t border-zinc-200 pt-5 dark:border-zinc-800">
             <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Output</h3>
             <div className="mt-3">
-              <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                Delivery target
+              <FieldLabel label="Delivery target">
                 <TextInput
                   mono
                   value={form.deliver}
                   onChange={(deliver) => patch({ deliver })}
                   placeholder="local, origin, slack:#eng, telegram:123, discord:#eng"
                 />
-              </label>
+              </FieldLabel>
               <a href={HERMES_DELIVERY_DOCS} target="_blank" rel="noreferrer" className="mt-1.5 inline-flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100">
                 Delivery targets
                 <ExternalLink size={12} />
@@ -889,18 +890,13 @@ function RoutineEditorPage({
               <FieldLabel label="Workdir">
                 <TextInput mono value={form.workdir} onChange={(workdir) => patch({ workdir })} placeholder="~/.minions/workspace" />
               </FieldLabel>
-              <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                Repeat
-                <select
-                  value={form.repeatMode}
-                  onChange={(event) => patch({ repeatMode: event.target.value as RepeatMode })}
-                  className="mt-1 h-9 w-full rounded-md border border-zinc-200 bg-white px-2.5 text-sm text-zinc-900 focus:border-zinc-400 focus:outline-none dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100"
-                >
+              <FieldLabel label="Repeat">
+                <SelectInput value={form.repeatMode} onChange={(v) => patch({ repeatMode: v as RepeatMode })}>
                   <option value="forever">Forever</option>
                   <option value="once">Only once</option>
                   <option value="times">N times</option>
-                </select>
-              </label>
+                </SelectInput>
+              </FieldLabel>
               {form.repeatMode === 'times' && (
                 <FieldLabel label="Runs">
                   <TextInput type="number" value={form.repeatCount} onChange={(repeatCount) => patch({ repeatCount })} />

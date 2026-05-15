@@ -12,6 +12,11 @@ function resolveHomeAwarePath(value: string): string {
   return resolve(expandHomePrefix(value));
 }
 
+export function resolveHermesHome(): string {
+  const configured = process.env.HERMES_HOME?.trim();
+  return resolveHomeAwarePath(configured || '~/.hermes');
+}
+
 export function resolveMinionsHome(): string {
   const configured = process.env.MINIONS_HOME?.trim();
   return resolveHomeAwarePath(configured || '~/.minions');

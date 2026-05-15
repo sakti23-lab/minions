@@ -1,12 +1,11 @@
-import { readdir, readFile, stat } from 'node:fs/promises';
+import { open, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { expandHomePrefix } from '../paths.js';
+import { resolveHermesHome } from '../paths.js';
 import type { RoutineRun, RoutineRunContent } from '../../shared/types.js';
 
+let _outputDir: string | undefined;
 function resolveOutputDir(): string {
-  const hermesHome = process.env.HERMES_HOME?.trim();
-  const base = hermesHome ? expandHomePrefix(hermesHome) : expandHomePrefix('~/.hermes');
-  return join(base, 'cron', 'output');
+  return (_outputDir ??= join(resolveHermesHome(), 'cron', 'output'));
 }
 
 function isValidSegment(value: string): boolean {
@@ -21,7 +20,8 @@ function parseTimestamp(stem: string): string | null {
 }
 
 function detectStatus(head: string): RoutineRun['status'] {
-  const firstLine = head.split('\n').find((l) => l.trim())?.trim() ?? '';
+  const nlIdx = head.indexOf('\n');
+  const firstLine = (nlIdx === -1 ? head : head.slice(0, nlIdx)).trim();
   if (firstLine.startsWith('# Cron Job:') && firstLine.includes('(FAILED)')) return 'error';
   if (firstLine.startsWith('# Cron Job:')) return 'ok';
   return 'unknown';
@@ -29,9 +29,10 @@ function detectStatus(head: string): RoutineRun['status'] {
 
 function extractBody(content: string): string {
   const lines = content.split('\n');
-  for (const marker of ['## Response', '## Error']) {
-    for (let i = 0; i < lines.length; i++) {
-      if (lines[i].trim() === marker) return lines.slice(i + 1).join('\n').trim();
+  for (let i = 0; i < lines.length; i++) {
+    const trimmed = lines[i].trim();
+    if (trimmed === '## Response' || trimmed === '## Error') {
+      return lines.slice(i + 1).join('\n').trim();
     }
   }
   return content.trim();
@@ -47,6 +48,17 @@ function buildPreview(head: string): string {
   return truncate(lines.join('\n'), 240);
 }
 
+async function readHead(path: string, maxBytes = 8192): Promise<string> {
+  const fh = await open(path, 'r');
+  try {
+    const buf = Buffer.alloc(maxBytes);
+    const { bytesRead } = await fh.read(buf, 0, maxBytes, 0);
+    return buf.toString('utf8', 0, bytesRead);
+  } finally {
+    await fh.close();
+  }
+}
+
 export async function listRoutineRuns(jobId: string, limit = 20): Promise<RoutineRun[]> {
   if (!isValidSegment(jobId)) return [];
   const dir = join(resolveOutputDir(), jobId);
@@ -60,28 +72,14 @@ export async function listRoutineRuns(jobId: string, limit = 20): Promise<Routin
     return [];
   }
 
-  const timed = await Promise.all(
-    names.map(async (name) => {
-      try {
-        const st = await stat(join(dir, name));
-        return { mtime: st.mtimeMs, name };
-      } catch {
-        return null;
-      }
-    }),
-  );
-  const valid = timed.filter((e): e is { mtime: number; name: string } => e !== null);
-  valid.sort((a, b) => b.mtime - a.mtime || b.name.localeCompare(a.name));
+  names.sort((a, b) => b.localeCompare(a));
 
   return Promise.all(
-    valid.slice(0, safeLimit).map(async (entry) => {
-      const stem = entry.name.replace(/\.md$/, '');
-      const path = join(dir, entry.name);
+    names.slice(0, safeLimit).map(async (name) => {
+      const stem = name.replace(/\.md$/, '');
+      const path = join(dir, name);
       let head = '';
-      try {
-        const buf = await readFile(path, 'utf8');
-        head = buf.slice(0, 8192);
-      } catch { /* unreadable file */ }
+      try { head = await readHead(path); } catch {}
       return { id: stem, jobId, ranAt: parseTimestamp(stem), path, status: detectStatus(head), preview: buildPreview(head) };
     }),
   );

@@ -102,16 +102,24 @@ export function createRoutinesRouter(adapter: HermesWorkerAdapter): Router {
   });
 
   router.get('/jobs/:jobId/runs', async (req, res) => {
-    const rawLimit = Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit;
-    const limit = rawLimit ? Number.parseInt(String(rawLimit), 10) : 20;
-    const runs = await listRoutineRuns(req.params.jobId, Number.isFinite(limit) ? limit : 20);
-    res.json({ runs });
+    try {
+      const rawLimit = Array.isArray(req.query.limit) ? req.query.limit[0] : req.query.limit;
+      const limit = rawLimit ? Number.parseInt(String(rawLimit), 10) : 20;
+      const runs = await listRoutineRuns(req.params.jobId, Number.isFinite(limit) ? limit : 20);
+      res.json({ runs });
+    } catch (error) {
+      res.status(500).json({ error: toErrorMessage(error, 'Failed to list routine runs') });
+    }
   });
 
   router.get('/jobs/:jobId/runs/:runId/content', async (req, res) => {
-    const content = await getRoutineRunContent(req.params.jobId, req.params.runId);
-    if (!content) return res.status(404).json({ error: 'Routine run output not found' });
-    res.json({ content });
+    try {
+      const content = await getRoutineRunContent(req.params.jobId, req.params.runId);
+      if (!content) return res.status(404).json({ error: 'Routine run output not found' });
+      res.json({ content });
+    } catch (error) {
+      res.status(500).json({ error: toErrorMessage(error, 'Failed to read routine run') });
+    }
   });
 
   async function jobActionHandler(

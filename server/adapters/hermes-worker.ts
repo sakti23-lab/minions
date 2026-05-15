@@ -14,7 +14,7 @@ import type {
 } from '../../shared/types.js';
 import type { AgentAdapter, AgentRunOptions, StreamEvent } from './types.js';
 import type { WorkerEvent, WorkerRequest, WorkerResult, WorkerErrorPayload } from './worker-protocol.js';
-import { expandHomePrefix, resolveMinionsWorkspaceDir } from '../paths.js';
+import { expandHomePrefix, resolveHermesHome, resolveMinionsWorkspaceDir } from '../paths.js';
 
 const WORKER_READY_TIMEOUT_MS = 10_000;
 
@@ -59,11 +59,7 @@ function resolvePython(): string {
   if (process.env.HERMES_AGENT_DIR) {
     candidates.push(join(expandHomePrefix(process.env.HERMES_AGENT_DIR), 'venv/bin/python'));
   }
-  const hermesHome = process.env.HERMES_HOME?.trim();
-  if (hermesHome) {
-    candidates.push(join(expandHomePrefix(hermesHome), 'hermes-agent/venv/bin/python'));
-  }
-  candidates.push(expandHomePrefix('~/.hermes/hermes-agent/venv/bin/python'));
+  candidates.push(join(resolveHermesHome(), 'hermes-agent/venv/bin/python'));
 
   const found = candidates.find((candidate) => existsSync(candidate));
   if (found) return found;
