@@ -4,7 +4,16 @@ import { dirname, join, resolve } from 'node:path';
 import { createInterface, type Interface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
-import type { AgentDefaults, AgentModelsResponse, CronJob, CronRun, SessionMetadata, TaskMessage } from '../../shared/types.js';
+import type {
+  AgentDefaults,
+  AgentModelsResponse,
+  Routine,
+  RoutineInput,
+  RoutineRun,
+  RoutineRunContent,
+  SessionMetadata,
+  TaskMessage,
+} from '../../shared/types.js';
 import type { AgentAdapter, AgentRunOptions, StreamEvent } from './types.js';
 import type { WorkerEvent, WorkerRequest, WorkerResult, WorkerErrorPayload } from './worker-protocol.js';
 import { expandHomePrefix, resolveMinionsWorkspaceDir } from '../paths.js';
@@ -510,75 +519,91 @@ export class HermesWorkerAdapter implements AgentAdapter {
     return await this.client.request<AgentModelsResponse>('models.list');
   }
 
-  async listCronJobs(includeDisabled = false): Promise<CronJob[]> {
-    const result = await this.client.request<{ jobs: CronJob[] }>({
-      type: 'cron.jobs.list',
+  async listRoutines(includeDisabled = false): Promise<Routine[]> {
+    const result = await this.client.request<{ jobs: Routine[] }>({
+      type: 'routines.jobs.list',
       includeDisabled,
     });
     return result.jobs;
   }
 
-  async getCronJob(jobId: string): Promise<CronJob | null> {
-    const result = await this.client.request<{ job: CronJob | null }>({
-      type: 'cron.jobs.get',
+  async getRoutine(jobId: string): Promise<Routine | null> {
+    const result = await this.client.request<{ job: Routine | null }>({
+      type: 'routines.jobs.get',
       jobId,
     });
     return result.job;
   }
 
-  async getCronRuns(jobId: string, limit = 20): Promise<CronRun[]> {
-    const result = await this.client.request<{ runs: CronRun[] }>({
-      type: 'cron.jobs.runs',
+  async createRoutine(input: RoutineInput): Promise<Routine> {
+    const result = await this.client.request<{ job: Routine }>({
+      type: 'routines.jobs.create',
+      ...input,
+    });
+    return result.job;
+  }
+
+  async updateRoutine(jobId: string, updates: Partial<RoutineInput>): Promise<Routine | null> {
+    const result = await this.client.request<{ job: Routine | null }>({
+      type: 'routines.jobs.update',
+      jobId,
+      ...updates,
+    });
+    return result.job;
+  }
+
+  async getRoutineRuns(jobId: string, limit = 20): Promise<RoutineRun[]> {
+    const result = await this.client.request<{ runs: RoutineRun[] }>({
+      type: 'routines.jobs.runs',
       jobId,
       limit,
     });
     return result.runs;
   }
 
-  async getCronRunContent(jobId: string, runId: string): Promise<string> {
-    const result = await this.client.request<{ content: string }>({
-      type: 'cron.jobs.run.content',
+  async getRoutineRunContent(jobId: string, runId: string): Promise<RoutineRunContent> {
+    return this.client.request<RoutineRunContent>({
+      type: 'routines.jobs.run.content',
       jobId,
       runId,
     });
-    return result.content;
   }
 
-  async pauseCronJob(jobId: string, reason?: string): Promise<CronJob | null> {
-    const result = await this.client.request<{ job: CronJob | null }>({
-      type: 'cron.jobs.pause',
+  async pauseRoutine(jobId: string, reason?: string): Promise<Routine | null> {
+    const result = await this.client.request<{ job: Routine | null }>({
+      type: 'routines.jobs.pause',
       jobId,
       reason,
     });
     return result.job;
   }
 
-  async resumeCronJob(jobId: string): Promise<CronJob | null> {
-    const result = await this.client.request<{ job: CronJob | null }>({
-      type: 'cron.jobs.resume',
+  async resumeRoutine(jobId: string): Promise<Routine | null> {
+    const result = await this.client.request<{ job: Routine | null }>({
+      type: 'routines.jobs.resume',
       jobId,
     });
     return result.job;
   }
 
-  async runCronJob(jobId: string): Promise<CronJob | null> {
-    const result = await this.client.request<{ job: CronJob | null }>({
-      type: 'cron.jobs.run',
+  async runRoutine(jobId: string): Promise<Routine | null> {
+    const result = await this.client.request<{ job: Routine | null }>({
+      type: 'routines.jobs.run',
       jobId,
     });
     return result.job;
   }
 
-  async removeCronJob(jobId: string): Promise<boolean> {
+  async removeRoutine(jobId: string): Promise<boolean> {
     const result = await this.client.request<{ ok: boolean }>({
-      type: 'cron.jobs.remove',
+      type: 'routines.jobs.remove',
       jobId,
     });
     return result.ok;
   }
 
-  async tickCron(): Promise<number> {
-    const result = await this.client.request<{ executed: number }>({ type: 'cron.tick' });
+  async tickRoutines(): Promise<number> {
+    const result = await this.client.request<{ executed: number }>({ type: 'routines.tick' });
     return result.executed;
   }
 

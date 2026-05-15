@@ -32,17 +32,19 @@ from hermes_sessions import (
     project_session_messages,
     project_session_metadata,
 )
-from hermes_cron import (
-    get_cron_job,
-    get_cron_run_content,
-    list_cron_jobs,
-    list_cron_runs,
-    pause_cron_job,
-    remove_cron_job,
-    resume_cron_job,
-    start_cron_ticker,
-    tick_cron,
-    trigger_cron_job,
+from hermes_routines import (
+    create_routine,
+    get_routine,
+    get_routine_run_content,
+    list_routine_runs,
+    list_routines,
+    pause_routine,
+    remove_routine,
+    resume_routine,
+    start_routine_ticker,
+    tick_routines,
+    trigger_routine,
+    update_routine,
 )
 
 PROTOCOL_OUT = sys.stdout
@@ -1174,24 +1176,28 @@ def _handle_request(request: dict[str, Any]) -> None:
             _result(request_id, _set_defaults(request))
         elif request_type == "models.list":
             _result(request_id, _list_models())
-        elif request_type == "cron.jobs.list":
-            _result(request_id, list_cron_jobs(bool(request.get("includeDisabled"))))
-        elif request_type == "cron.jobs.get":
-            _result(request_id, get_cron_job(request.get("jobId")))
-        elif request_type == "cron.jobs.runs":
-            _result(request_id, list_cron_runs(request.get("jobId"), request.get("limit", 20)))
-        elif request_type == "cron.jobs.run.content":
-            _result(request_id, get_cron_run_content(request.get("jobId"), request.get("runId")))
-        elif request_type == "cron.jobs.pause":
-            _result(request_id, pause_cron_job(request.get("jobId"), request.get("reason")))
-        elif request_type == "cron.jobs.resume":
-            _result(request_id, resume_cron_job(request.get("jobId")))
-        elif request_type == "cron.jobs.run":
-            _result(request_id, trigger_cron_job(request.get("jobId")))
-        elif request_type == "cron.jobs.remove":
-            _result(request_id, remove_cron_job(request.get("jobId")))
-        elif request_type == "cron.tick":
-            _result(request_id, {"executed": tick_cron()})
+        elif request_type == "routines.jobs.list":
+            _result(request_id, list_routines(bool(request.get("includeDisabled"))))
+        elif request_type == "routines.jobs.get":
+            _result(request_id, get_routine(request.get("jobId")))
+        elif request_type == "routines.jobs.create":
+            _result(request_id, create_routine(request))
+        elif request_type == "routines.jobs.update":
+            _result(request_id, update_routine(request))
+        elif request_type == "routines.jobs.runs":
+            _result(request_id, list_routine_runs(request.get("jobId"), request.get("limit", 20)))
+        elif request_type == "routines.jobs.run.content":
+            _result(request_id, get_routine_run_content(request.get("jobId"), request.get("runId")))
+        elif request_type == "routines.jobs.pause":
+            _result(request_id, pause_routine(request.get("jobId"), request.get("reason")))
+        elif request_type == "routines.jobs.resume":
+            _result(request_id, resume_routine(request.get("jobId")))
+        elif request_type == "routines.jobs.run":
+            _result(request_id, trigger_routine(request.get("jobId")))
+        elif request_type == "routines.jobs.remove":
+            _result(request_id, remove_routine(request.get("jobId")))
+        elif request_type == "routines.tick":
+            _result(request_id, {"executed": tick_routines()})
         elif request_type == "session.messages.get":
             _result(request_id, project_session_messages(request.get("sessionId"), request.get("taskId")))
         elif request_type == "session.get":
@@ -1258,7 +1264,7 @@ def main() -> int:
         return _self_test()
 
     sys.stdout = sys.stderr
-    start_cron_ticker()
+    start_routine_ticker()
     try:
         _run_loop()
     except KeyboardInterrupt:

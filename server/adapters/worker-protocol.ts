@@ -1,8 +1,10 @@
 import type {
   AgentDefaults,
   AgentModelsResponse,
-  CronJob,
-  CronRun,
+  Routine,
+  RoutineInput,
+  RoutineRun,
+  RoutineRunContent,
   SessionMetadata,
   TaskMessage,
   ContextUsage,
@@ -14,15 +16,17 @@ export type WorkerRequest =
   | { id: string; type: 'settings.get' }
   | { id: string; type: 'settings.set'; model?: string | null; reasoningEffort?: string | null }
   | { id: string; type: 'models.list' }
-  | { id: string; type: 'cron.jobs.list'; includeDisabled?: boolean }
-  | { id: string; type: 'cron.jobs.get'; jobId: string }
-  | { id: string; type: 'cron.jobs.runs'; jobId: string; limit?: number }
-  | { id: string; type: 'cron.jobs.run.content'; jobId: string; runId: string }
-  | { id: string; type: 'cron.jobs.pause'; jobId: string; reason?: string }
-  | { id: string; type: 'cron.jobs.resume'; jobId: string }
-  | { id: string; type: 'cron.jobs.run'; jobId: string }
-  | { id: string; type: 'cron.jobs.remove'; jobId: string }
-  | { id: string; type: 'cron.tick' }
+  | { id: string; type: 'routines.jobs.list'; includeDisabled?: boolean }
+  | { id: string; type: 'routines.jobs.get'; jobId: string }
+  | { id: string; type: 'routines.jobs.create' } & RoutineInput
+  | { id: string; type: 'routines.jobs.update'; jobId: string } & Partial<RoutineInput>
+  | { id: string; type: 'routines.jobs.runs'; jobId: string; limit?: number }
+  | { id: string; type: 'routines.jobs.run.content'; jobId: string; runId: string }
+  | { id: string; type: 'routines.jobs.pause'; jobId: string; reason?: string }
+  | { id: string; type: 'routines.jobs.resume'; jobId: string }
+  | { id: string; type: 'routines.jobs.run'; jobId: string }
+  | { id: string; type: 'routines.jobs.remove'; jobId: string }
+  | { id: string; type: 'routines.tick' }
   | { id: string; type: 'session.messages.get'; sessionId: string; taskId?: string }
   | { id: string; type: 'session.get'; sessionId: string }
   | {
@@ -58,10 +62,10 @@ export type WorkerResult =
   | { ok: boolean; agentDir?: string | null; python?: string | null }
   | AgentDefaults
   | AgentModelsResponse
-  | { jobs: CronJob[] }
-  | { job: CronJob | null }
-  | { runs: CronRun[] }
-  | { content: string }
+  | { jobs: Routine[] }
+  | { job: Routine | null }
+  | { runs: RoutineRun[] }
+  | RoutineRunContent
   | { executed: number }
   | { messages: TaskMessage[] }
   | { session: SessionMetadata | null }

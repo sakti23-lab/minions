@@ -128,7 +128,7 @@ export interface TaskAgentSettings {
   };
 }
 
-export interface CronJobOrigin {
+export interface RoutineOrigin {
   platform?: string | null;
   chat_id?: string | null;
   chat_name?: string | null;
@@ -136,7 +136,7 @@ export interface CronJobOrigin {
   [key: string]: unknown;
 }
 
-export interface CronJob {
+export interface Routine {
   id: string;
   name: string;
   prompt: string | null;
@@ -146,29 +146,54 @@ export interface CronJob {
   state: string | null;
   nextRunAt: string | null;
   lastRunAt: string | null;
-  lastStatus: CronStatus | null;
+  lastStatus: RoutineStatus | null;
   lastError: string | null;
   lastDeliveryError: string | null;
   model: string | null;
   provider: string | null;
   baseUrl: string | null;
   deliver: string | null;
-  origin: CronJobOrigin | null;
+  origin: RoutineOrigin | null;
+  repeat: RoutineRepeat | null;
+  contextFrom: string[];
   skills: string[];
+  workdir: string | null;
   createdAt: string | null;
-  linkedTaskIds?: string[];
 }
 
-export type CronStatus = 'ok' | 'error' | 'unknown';
+export type RoutineStatus = 'ok' | 'error' | 'unknown';
 
-export interface CronRun {
+export interface RoutineRepeat {
+  times: number | null;
+  completed: number;
+}
+
+export interface RoutineRun {
   id: string;
   jobId: string;
   ranAt: string | null;
   path: string;
-  status: CronStatus;
+  status: RoutineStatus;
   preview: string;
-  content?: string;
+}
+
+export interface RoutineRunContent {
+  body: string;
+  status: RoutineStatus;
+}
+
+export interface RoutineInput {
+  name?: string;
+  prompt: string;
+  schedule: string;
+  deliver?: string;
+  skills?: string[];
+  model?: string | null;
+  provider?: string | null;
+  baseUrl?: string | null;
+  workdir?: string | null;
+  repeat?: number | null;
+  contextFrom?: string | string[] | null;
 }
 
 export type FileEntryType = 'file' | 'directory' | 'symlink' | 'other';

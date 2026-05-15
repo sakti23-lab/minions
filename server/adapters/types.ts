@@ -1,4 +1,13 @@
-import type { AgentRunSettings, ContextUsage, SessionMetadata, TaskMessage } from '../../shared/types.js';
+import type {
+  AgentRunSettings,
+  ContextUsage,
+  Routine,
+  RoutineInput,
+  RoutineRun,
+  RoutineRunContent,
+  SessionMetadata,
+  TaskMessage,
+} from '../../shared/types.js';
 
 export type { AgentRunSettings, ContextUsage };
 
@@ -50,4 +59,26 @@ export interface AgentAdapter {
   ): Promise<{ done: boolean; reason: string }>;
 
   generateTitle(description: string): Promise<{ title: string }>;
+
+  listRoutines(includeDisabled?: boolean): Promise<Routine[]>;
+
+  getRoutine(jobId: string): Promise<Routine | null>;
+
+  createRoutine(input: RoutineInput): Promise<Routine>;
+
+  updateRoutine(jobId: string, updates: Partial<RoutineInput>): Promise<Routine | null>;
+
+  getRoutineRuns(jobId: string, limit?: number): Promise<RoutineRun[]>;
+
+  getRoutineRunContent(jobId: string, runId: string): Promise<RoutineRunContent>;
+
+  pauseRoutine(jobId: string, reason?: string): Promise<Routine | null>;
+
+  resumeRoutine(jobId: string): Promise<Routine | null>;
+
+  runRoutine(jobId: string): Promise<Routine | null>;
+
+  removeRoutine(jobId: string): Promise<boolean>;
+
+  tickRoutines(): Promise<number>;
 }

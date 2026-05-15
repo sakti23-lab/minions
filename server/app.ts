@@ -4,7 +4,7 @@ import cors from 'cors';
 import { tasksRouter } from './routes/tasks.js';
 import { chatRouter } from './routes/chat.js';
 import { createAgentRouter, createTaskAgentSettingsRouter } from './routes/agent.js';
-import { createCronRouter, createTaskCronRouter } from './routes/cron.js';
+import { createRoutinesRouter } from './routes/routines.js';
 import { skillsRouter } from './routes/skills.js';
 import { filesRouter } from './routes/files.js';
 import { HermesWorkerAdapter } from './adapters/hermes-worker.js';
@@ -33,11 +33,10 @@ app.use('/api/files', express.json({ limit: '25mb' }), filesRouter);
 app.use(express.json());
 
 app.use('/api/tasks', tasksRouter);
-app.use('/api/tasks', createTaskCronRouter(adapter));
 app.use('/api/tasks', createTaskAgentSettingsRouter(adapter));
 app.use('/api/tasks', chatRouter);
 app.use('/api/agent', createAgentRouter(adapter));
-app.use('/api/cron', createCronRouter(adapter));
+app.use('/api/routines', createRoutinesRouter(adapter));
 app.use('/api/skills', skillsRouter);
 
 app.use((error: unknown, _req: Request, res: Response, next: NextFunction) => {

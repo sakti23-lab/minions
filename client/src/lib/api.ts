@@ -2,8 +2,6 @@ import type {
   AgentDefaults,
   AgentModelsResponse,
   AgentRunSettings,
-  CronJob,
-  CronRun,
   FileCreateResponse,
   FileCreateType,
   FileDeleteResponse,
@@ -19,6 +17,10 @@ import type {
   TaskMessage,
   TaskStatus,
   ReasoningEffort,
+  Routine,
+  RoutineInput,
+  RoutineRun,
+  RoutineRunContent,
 } from '@shared/types';
 
 export type { AgentRunSettings };
@@ -139,8 +141,19 @@ export function fetchTaskAgentSettings(taskId: string) {
 }
 
 
-export function fetchCronJobs(includeDisabled = true) {
-  return request<{ jobs: CronJob[] }>(`/cron/jobs?includeDisabled=${includeDisabled ? 'true' : 'false'}`);
+export function fetchRoutines(includeDisabled = true) {
+  return request<{ jobs: Routine[] }>(`/routines/jobs?includeDisabled=${includeDisabled ? 'true' : 'false'}`);
+}
+
+export function fetchRoutine(jobId: string) {
+  return request<{ job: Routine | null }>(`/routines/jobs/${encodeURIComponent(jobId)}`);
+}
+
+export function createRoutine(input: RoutineInput) {
+  return request<{ job: Routine }>('/routines/jobs', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  });
 }
 
 export function fetchSkills() {
@@ -207,35 +220,42 @@ export function deleteFileEntry(path: string, recursive = false) {
   });
 }
 
-export function fetchCronRuns(jobId: string, limit = 20) {
-  return request<{ runs: CronRun[] }>(`/cron/jobs/${encodeURIComponent(jobId)}/runs?limit=${limit}`);
+export function updateRoutine(jobId: string, updates: Partial<RoutineInput>) {
+  return request<{ job: Routine }>(`/routines/jobs/${encodeURIComponent(jobId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  });
 }
 
-export function fetchCronRunContent(jobId: string, runId: string) {
-  return request<{ content: string }>(`/cron/jobs/${encodeURIComponent(jobId)}/runs/${encodeURIComponent(runId)}/content`);
+export function fetchRoutineRuns(jobId: string, limit = 20) {
+  return request<{ runs: RoutineRun[] }>(`/routines/jobs/${encodeURIComponent(jobId)}/runs?limit=${limit}`);
 }
 
-export function pauseCronJob(jobId: string, reason?: string) {
-  return request<{ job: CronJob }>(`/cron/jobs/${encodeURIComponent(jobId)}/pause`, {
+export function fetchRoutineRunContent(jobId: string, runId: string) {
+  return request<{ content: RoutineRunContent }>(`/routines/jobs/${encodeURIComponent(jobId)}/runs/${encodeURIComponent(runId)}/content`);
+}
+
+export function pauseRoutine(jobId: string, reason?: string) {
+  return request<{ job: Routine }>(`/routines/jobs/${encodeURIComponent(jobId)}/pause`, {
     method: 'POST',
     body: JSON.stringify(reason ? { reason } : {}),
   });
 }
 
-export function resumeCronJob(jobId: string) {
-  return request<{ job: CronJob }>(`/cron/jobs/${encodeURIComponent(jobId)}/resume`, {
+export function resumeRoutine(jobId: string) {
+  return request<{ job: Routine }>(`/routines/jobs/${encodeURIComponent(jobId)}/resume`, {
     method: 'POST',
   });
 }
 
-export function runCronJob(jobId: string) {
-  return request<{ job: CronJob }>(`/cron/jobs/${encodeURIComponent(jobId)}/run`, {
+export function runRoutine(jobId: string) {
+  return request<{ job: Routine }>(`/routines/jobs/${encodeURIComponent(jobId)}/run`, {
     method: 'POST',
   });
 }
 
-export function deleteCronJob(jobId: string) {
-  return request<{ ok: boolean }>(`/cron/jobs/${encodeURIComponent(jobId)}`, {
+export function deleteRoutine(jobId: string) {
+  return request<{ ok: boolean }>(`/routines/jobs/${encodeURIComponent(jobId)}`, {
     method: 'DELETE',
   });
 }

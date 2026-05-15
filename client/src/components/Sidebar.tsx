@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
-import { SquarePen, Columns3, Settings, PanelLeftClose, PanelLeft, CalendarClock, Sparkles, Folder } from 'lucide-react';
+import { SquarePen, Columns3, Settings, PanelLeftClose, PanelLeft, Repeat, Sparkles, Folder } from 'lucide-react';
 import { useStore } from '../lib/store';
 import { isEditableTarget } from '../lib/keyboard';
 
@@ -115,10 +115,10 @@ export function Sidebar() {
           shortcut={['G', 'F']}
         />
         <SidebarLink
-          icon={<CalendarClock size={18} />}
-          label="Schedules"
-          to="/cron"
-          active={isActive('/cron')}
+          icon={<Repeat size={18} />}
+          label="Routines"
+          to="/routines"
+          active={isActive('/routines')}
           collapsed={collapsed}
         />
         <SidebarLink

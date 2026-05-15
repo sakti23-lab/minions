@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-Minions is an autonomous task management system with a Kanban board UI. Users create tasks via a chat interface; each task is a Hermes agent session that autonomously decides how to execute — doing the work itself, spawning child sessions, or creating cron jobs. After each agent turn, a lightweight completion judge evaluates whether the task is done and moves it to review automatically. The user never talks to child sessions or cron jobs directly; the task agent manages its own sub-resources.
+Minions is an autonomous task management system with a Kanban board UI. Users create tasks via a chat interface; each task is a Hermes agent session that autonomously decides how to execute — doing the work itself, spawning child sessions, or creating Hermes cron jobs shown in Minions as Routines. After each agent turn, a lightweight completion judge evaluates whether the task is done and moves it to review automatically. The user never talks to child sessions directly; recurring work is managed from the Routines page.
 
 ## Prerequisites
 
@@ -58,7 +58,7 @@ All persistent state lives under `MINIONS_HOME` (default: `~/.minions/`):
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | Agent communication | Python subprocess + JSONL | Imports Hermes AIAgent directly — no HTTP gateway overhead, structured streaming events, per-task model/reasoning control |
-| Task execution | Autonomous agent session | Each task IS a Hermes session. The agent decides execution strategy (self, child session, cron job). Our backend doesn't manage sub-resources. |
+| Task execution | Autonomous agent session | Each task IS a Hermes session. The agent decides execution strategy (self, child session, Hermes cron job/routine). Our backend doesn't manage child sessions. |
 | Completion judge | Lightweight LLM call after each agent turn | After a chat stream completes, the server sends the response to a `judge.completion` worker request. A fast judge model evaluates whether the task looks done and auto-moves to `in_review`. No polling, no prompt pollution — the judge runs outside the conversation. |
 | Source of truth | Hermes SessionDB for chat history; Minions SQLite for task metadata; in-memory LiveChatRun for active streams | Hermes owns all transcripts and replay. Minions has no message table. `tasks.id` is the Hermes root session ID; Minions stores task metadata, per-task settings, and `last_agent_response_at`. During active streaming, `live-chat.ts` holds an in-memory `LiveChatRun` with accumulated messages. After streaming ends and the run TTL expires, chat history is projected from Hermes SessionDB on demand. |
 | Status ownership | Judge auto-moves to `in_review`; human moves everything else via drag-drop | Clean separation: judge evaluates completion, human controls all manual transitions. |
@@ -74,7 +74,7 @@ All persistent state lives under `MINIONS_HOME` (default: `~/.minions/`):
 - **Live-chat state** (`server/live-chat.ts`): In-memory `Map<taskId, LiveChatRun>` accumulates streaming events into structured messages (user + assistant with tools/thinking/usage). This is ephemeral — on server restart, active run state is lost, but the Hermes session history remains in SessionDB.
 - **SSE board events**: `/api/events` broadcasts board-level events (task CRUD) to all clients. Separate from per-task live chat SSE.
 - **Disconnect resilience**: If the browser disconnects during a stream, the server continues draining the worker stream to completion. On successful completion, `last_agent_response_at` is recorded for the task.
-- **Cron jobs**: Hermes manages cron job state internally. Minions exposes endpoints to list, pause, resume, trigger, and remove jobs. Cron jobs link back to their originating task via `origin.platform === 'minions'`.
+- **Routines**: Hermes manages the underlying cron job state internally. Minions exposes `/api/routines` endpoints to list, create, edit, pause, resume, trigger, remove, and read local output files. Routines are standalone; Minions no longer links them to task IDs.
 - **File browser**: `server/routes/files.ts` exposes CRUD operations on the `MINIONS_HOME/workspace/` directory (list, read, write, create, rename, delete, upload via multer). The client's `FileBrowserPage` provides a full file manager UI.
 - **Skills catalog**: `server/skills/catalog.ts` discovers bundled skill definitions. Exposed via `server/routes/skills.ts` and rendered in the client's `SkillsPage`.
 - **Server imports**: Use `.js` extensions in import paths (ESM with tsx).
@@ -149,7 +149,7 @@ Chat stream completes (done event in consumeChatRun)
 
 The Python worker communicates via JSONL (one JSON object per line) over stdin/stdout.
 
-**Request types**: `health`, `chat`, `judge.completion`, `session.messages.get`, `session.get`, `settings.get`, `settings.set`, `models.list`, `cron.jobs.list`, `cron.jobs.get`, `cron.jobs.runs`, `cron.jobs.run.content`, `cron.jobs.pause`, `cron.jobs.resume`, `cron.jobs.run`, `cron.jobs.remove`, `cron.tick`
+**Request types**: `health`, `chat`, `judge.completion`, `session.messages.get`, `session.get`, `settings.get`, `settings.set`, `models.list`, `routines.jobs.list`, `routines.jobs.get`, `routines.jobs.create`, `routines.jobs.update`, `routines.jobs.runs`, `routines.jobs.run.content`, `routines.jobs.pause`, `routines.jobs.resume`, `routines.jobs.run`, `routines.jobs.remove`, `routines.tick`
 
 **Stream events** (emitted during `chat` requests):
 
@@ -170,7 +170,8 @@ The Python worker communicates via JSONL (one JSON object per line) over stdin/s
 | `/` | `Board` | Kanban board (3 columns + drag-and-drop) |
 | `/tasks/new` | `NewTaskPage` | Create task + initial chat with agent |
 | `/tasks/:taskId` | `TaskDetailPage` | Task detail + chat thread |
-| `/cron` | `CronPage` | View and manage Hermes cron jobs |
+| `/routines` | `RoutinesPage` | Create and manage recurring Hermes routines |
+| `/cron` | redirect | Browser bookmark redirect to `/routines` |
 | `/skills` | `SkillsPage` | Browse bundled skill definitions |
 | `/files` | `FileBrowserPage` | File manager for workspace directory |
 | `/settings` | `SettingsPage` | Theme, default model + reasoning effort |

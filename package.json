@@ -5,8 +5,8 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "dev": "NODE_ENV=development tsx watch server/index.ts",
-    "dev:server": "NODE_ENV=development tsx watch server/index.ts",
+    "dev": "NODE_ENV=development tsx watch --include='server/workers/**/*.py' server/index.ts",
+    "dev:server": "NODE_ENV=development tsx watch --include='server/workers/**/*.py' server/index.ts",
     "clean": "rm -rf dist",
     "build": "npm run clean && npm run build:server && npm run build:client && npm run build:assets",
     "build:client": "cd client && npx vite build --outDir ../dist/server/client/dist --emptyOutDir",
@@ -26,6 +26,7 @@
     "archiver": "^7.0.1",
     "better-sqlite3": "^11.7.0",
     "cors": "^2.8.5",
+    "cron-parser": "^5.5.0",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "lucide-react": "^1.12.0",

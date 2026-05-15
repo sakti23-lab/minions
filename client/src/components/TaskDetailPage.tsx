@@ -14,8 +14,6 @@ import { RenameReveal, useRenameAnimation } from './RenameTitle';
 import type { AgentRunSettings } from '../lib/api';
 import type { TaskStatus } from '@shared/types';
 
-const DETAIL_COLUMN_CLASS = 'max-w-[808px] w-full mx-auto';
-
 export function TaskDetailPage() {
   const { taskId } = useParams<{ taskId: string }>();
   const navigate = useNavigate();
@@ -137,7 +135,7 @@ export function TaskDetailPage() {
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <div className={`${DETAIL_COLUMN_CLASS} px-4 sm:px-6 pt-7 pb-2`}>
+      <div className="w-full px-4 sm:px-6 pt-7 pb-2">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 flex-1">
             <div className="-ml-2 relative w-full rounded-md px-2 py-1 pr-10 transition-colors hover:bg-zinc-100/80 focus-within:bg-white focus-within:ring-1 focus-within:ring-zinc-200 dark:hover:bg-zinc-800/80 dark:focus-within:bg-zinc-900 dark:focus-within:ring-zinc-700">

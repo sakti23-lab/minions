@@ -1,17 +1,81 @@
+import { createContext, useContext, useLayoutEffect, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import { Link, useMatch, useLocation } from 'react-router-dom';
 import { ChevronRight } from 'lucide-react';
 import { useStore } from '../lib/store';
 import { RenameTitle } from './RenameTitle';
 
+export type PageHeaderCrumb = {
+  label: string;
+  to?: string;
+};
+
+export type PageHeaderConfig = {
+  crumbs: PageHeaderCrumb[];
+  actions?: ReactNode;
+};
+
+type PageHeaderEntry = {
+  owner: symbol;
+  config: PageHeaderConfig;
+};
+
+const PageHeaderEntryContext = createContext<PageHeaderEntry | null>(null);
+const PageHeaderDispatchContext = createContext<Dispatch<SetStateAction<PageHeaderEntry | null>> | null>(null);
+
+export function HeaderProvider({ children }: { children: ReactNode }) {
+  const [entry, setEntry] = useState<PageHeaderEntry | null>(null);
+  return (
+    <PageHeaderDispatchContext.Provider value={setEntry}>
+      <PageHeaderEntryContext.Provider value={entry}>
+        {children}
+      </PageHeaderEntryContext.Provider>
+    </PageHeaderDispatchContext.Provider>
+  );
+}
+
+export function usePageHeader(config: PageHeaderConfig) {
+  const setEntry = useContext(PageHeaderDispatchContext);
+  const ownerRef = useRef<symbol>(Symbol('page-header'));
+
+  useLayoutEffect(() => {
+    if (!setEntry) return undefined;
+    const owner = ownerRef.current;
+    setEntry({ owner, config });
+    return () => {
+      setEntry((current) => (current?.owner === owner ? null : current));
+    };
+  }, [config, setEntry]);
+}
+
+function HeaderCrumbs({ crumbs }: { crumbs: PageHeaderCrumb[] }) {
+  return (
+    <div className="flex min-w-0 items-center gap-2 text-sm font-medium">
+      {crumbs.map((crumb, index) => (
+        <div key={`${crumb.label}:${index}`} className="flex min-w-0 items-center gap-2">
+          {index > 0 && <ChevronRight size={14} className="shrink-0 text-zinc-300 dark:text-zinc-700" />}
+          {crumb.to ? (
+            <Link to={crumb.to} className="truncate text-zinc-500 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100">
+              {crumb.label}
+            </Link>
+          ) : (
+            <span className="truncate text-zinc-900 dark:text-zinc-100">{crumb.label}</span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function Header() {
   const location = useLocation();
+  const pageHeader = useContext(PageHeaderEntryContext)?.config ?? null;
   const match = useMatch('/tasks/:taskId');
   const taskId = match?.params.taskId;
   const task = useStore((s) => taskId ? s.tasks.find((t) => t.id === taskId) : null);
 
   const isSettings = location.pathname === '/settings';
   const isNewTask = location.pathname === '/tasks/new';
-  const isCron = location.pathname === '/cron';
+  const isRoutines = location.pathname.startsWith('/routines') || location.pathname === '/cron';
   const isSkills = location.pathname === '/skills';
   const isFiles = location.pathname === '/files';
 
@@ -21,8 +85,8 @@ export function Header() {
 
   if (isSettings) {
     title = 'Settings';
-  } else if (isCron) {
-    title = 'Schedules';
+  } else if (isRoutines) {
+    title = 'Routines';
   } else if (isSkills) {
     title = 'Skills';
   } else if (isFiles) {
@@ -34,6 +98,15 @@ export function Header() {
     title = task.title;
     showParent = true;
     truncate = true;
+  }
+
+  if (pageHeader) {
+    return (
+      <header className="flex min-h-[55px] items-center justify-between gap-4 border-b border-zinc-200 bg-surface px-6 py-3 dark:border-zinc-800 dark:bg-zinc-950">
+        <HeaderCrumbs crumbs={pageHeader.crumbs} />
+        {pageHeader.actions && <div className="flex shrink-0 items-center gap-2">{pageHeader.actions}</div>}
+      </header>
+    );
   }
 
   return (
