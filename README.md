@@ -6,27 +6,22 @@ Hermes Agent is powerful, but running real work on it means juggling terminal se
 
 Minions gives you one screen to create, supervise, and review autonomous Hermes Agent work.
 
-Hosted access opens May 10 on [Agent37](https://www.agent37.com). Run locally today.
-
-## Preview
-
-Minions task dashboard
+Hosted access option on [Agent37](https://www.agent37.com).
 
 ## Demo
 
 
+## Quick Start
 
-## Why Minions Exists
+**Prerequisites:** Node.js 18+ and [Hermes Agent](https://hermes-agent.nousresearch.com)
 
-The first agent task is fun. The tenth is operations.
+```bash
+npx minionsai
+```
 
-Power users do not just ask an agent one question. They delegate research, coding, monitoring, sales ops, writing, and recurring workflows. Those jobs take time. They need review. Recurring runs disappear into the background. Context fills up.
+Open [http://localhost:6969](http://localhost:6969).
 
-Minions turns Hermes sessions into durable, reviewable work.
-
-## Not Just A Board
-
-Minions is not just a task board. After each agent turn, a lightweight completion judge evaluates whether the task is done and auto-moves it to **Ready for review**. You verify and close — nothing moves to done without your sign-off.
+Local sqllite db is created on first run and state lives in `~/.minions/`
 
 ## Features
 
@@ -40,29 +35,7 @@ Minions is not just a task board. After each agent turn, a lightweight completio
 - **File browser**: see files agents have created in the workspace directory
 - **Local-first option**: self-host with SQLite, no account, and no cloud dependency. Your local data stays on your machine
 
-## Quick Start
-
-**Prerequisites:** Node.js 18+ and [Hermes Agent](https://hermes-agent.nousresearch.com)
-
-```bash
-npx minionsai
-```
-
-Open [http://localhost:6969](http://localhost:6969).
-
-Runs from npm with no clone, build, or install step. State lives in `~/.minions/`.
-
-Want to hack on Minions or cut a release? See [Development.md](Development.md).
-
 ## How It Works
-
-```
-Browser (React + Vite)
-  ↕ HTTP + SSE
-Express server (:6969)
-  ↕ JSONL stdin/stdout
-Python worker → Hermes AIAgent
-```
 
 Each task is a persistent Hermes root session. You talk to it, it works, and the board reflects where everything stands. Chat transcripts live in Hermes's session database; Minions stores task metadata, status, and per-task settings in a local SQLite database.
 

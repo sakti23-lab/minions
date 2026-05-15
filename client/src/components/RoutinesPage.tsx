@@ -78,7 +78,7 @@ type PendingAction = {
 
 type RunPollState = {
   jobId: string;
-  baselineIds: string[] | null;
+  previousLatestRunId: string | null;
   startedAt: number;
 };
 
@@ -238,6 +238,20 @@ function promptDescription(prompt: string | null): string {
     return trimmed && !trimmed.startsWith('#') && !trimmed.startsWith('-');
   })?.trim();
   return line ?? 'Self-contained runbook';
+}
+
+function findNewRoutineRun(runs: RoutineRun[], poll: RunPollState): RoutineRun | null {
+  if (!runs.length) return null;
+
+  if (poll.previousLatestRunId) {
+    return runs[0].id !== poll.previousLatestRunId ? runs[0] : null;
+  }
+
+  const cutoff = poll.startedAt - 5000;
+  return runs.find((run) => {
+    const ranAt = run.ranAt ? new Date(run.ranAt).getTime() : NaN;
+    return Number.isFinite(ranAt) && ranAt >= cutoff;
+  }) ?? null;
 }
 
 function initialFormState(routine?: Routine, template?: RoutineTemplate): RoutineFormState {
@@ -527,7 +541,15 @@ function RoutinesList({
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[960px] text-sm">
+        <table className="w-full min-w-[1120px] table-fixed text-sm">
+          <colgroup>
+            <col className="w-[34%]" />
+            <col className="w-[18%]" />
+            <col className="w-[12%]" />
+            <col className="w-[12%]" />
+            <col className="w-[9%]" />
+            <col className="w-[15%]" />
+          </colgroup>
           <thead>
             <tr className="border-b border-zinc-100 text-left text-xs uppercase tracking-wide text-zinc-400 dark:border-zinc-800 dark:text-zinc-500">
               <th className="px-5 py-2.5 font-medium">Name</th>
@@ -541,40 +563,48 @@ function RoutinesList({
           <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
             {routines.map((routine) => {
               const pending = pendingAction?.jobId === routine.id;
+              const description = promptDescription(routine.prompt);
+              const schedule = scheduleSummary(routine);
+              const lastRun = routine.lastRunAt ? relativeTime(routine.lastRunAt) : '-';
+              const nextRun = routine.enabled ? relativeTime(routine.nextRunAt) : '-';
               return (
                 <tr
                   key={routine.id}
                   onClick={() => onOpenRuns(routine)}
                   className={`cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/60 ${routine.enabled ? '' : 'opacity-75'}`}
                 >
-                  <td className="px-5 py-3">
-                    <div className="flex items-center gap-2.5">
-                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-md bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-300">
+                  <td className="px-5 py-3 align-middle">
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-zinc-100 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-300">
                         <FileText size={15} />
                       </span>
-                      <div className="min-w-0">
-                        <p className="truncate font-medium text-zinc-900 dark:text-zinc-100">{routine.name}</p>
-                        <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">{promptDescription(routine.prompt)}</p>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-medium text-zinc-900 dark:text-zinc-100" title={routine.name}>{routine.name}</p>
+                        <p className="truncate text-xs text-zinc-500 dark:text-zinc-400" title={description}>{description}</p>
                       </div>
                     </div>
                   </td>
-                  <td className="px-2 py-3 text-zinc-700 dark:text-zinc-300">{scheduleSummary(routine)}</td>
-                  <td className="px-2 py-3 text-zinc-500 dark:text-zinc-400">
-                    {routine.lastRunAt ? relativeTime(routine.lastRunAt) : '-'}
-                    {routine.lastStatus && (
-                      <span className={`ml-1.5 inline-flex items-center gap-1 ${routineStatusClass(routine.lastStatus)}`}>
-                        · {routine.lastStatus}
-                      </span>
-                    )}
+                  <td className="px-2 py-3 align-middle text-zinc-700 dark:text-zinc-300">
+                    <div className="truncate" title={schedule}>{schedule}</div>
                   </td>
-                  <td className="px-2 py-3 text-zinc-500 dark:text-zinc-400">
-                    {routine.enabled ? relativeTime(routine.nextRunAt) : '-'}
+                  <td className="px-2 py-3 align-middle text-zinc-500 dark:text-zinc-400">
+                    <div className="truncate">
+                      {lastRun}
+                      {routine.lastStatus && (
+                        <span className={`ml-1.5 inline-flex items-center gap-1 ${routineStatusClass(routine.lastStatus)}`}>
+                          · {routine.lastStatus}
+                        </span>
+                      )}
+                    </div>
                   </td>
-                  <td className="px-2 py-3">
+                  <td className="px-2 py-3 align-middle text-zinc-500 dark:text-zinc-400">
+                    <div className="truncate">{nextRun}</div>
+                  </td>
+                  <td className="px-2 py-3 align-middle">
                     <RoutineStatePill enabled={routine.enabled} />
                   </td>
-                  <td className="px-5 py-3">
-                    <div className="flex items-center justify-end gap-1.5">
+                  <td className="px-3 py-3 align-middle">
+                    <div className="flex items-center justify-end gap-1">
                       <IconButton title="Edit routine" icon={<Pencil size={15} />} disabled={Boolean(pendingAction)} onClick={() => onEdit(routine)} />
                       <IconButton title="Run now" icon={pending && pendingAction?.action === 'run' ? <Loader2 size={15} className="animate-spin" /> : <Play size={15} />} disabled={Boolean(pendingAction)} onClick={() => onRun(routine)} />
                       <IconButton title={routine.enabled ? 'Pause' : 'Resume'} icon={pending && (pendingAction?.action === 'pause' || pendingAction?.action === 'resume') ? <Loader2 size={15} className="animate-spin" /> : routine.enabled ? <Pause size={15} /> : <Play size={15} />} disabled={Boolean(pendingAction)} onClick={() => onToggle(routine)} />
@@ -823,7 +853,7 @@ function RoutineEditorPage({
           </section>
 
           <section className="border-t border-zinc-200 pt-5 dark:border-zinc-800">
-            <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Agent</h3>
+            <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Model</h3>
             <div className="mt-3">
               <ModelPicker
                 value={form.model}
@@ -918,7 +948,6 @@ function RoutineRunsView({
   loadingContent,
   pendingAction,
   waitingForRun,
-  pollElapsedSeconds,
   onRunFilterChange,
   onEdit,
   onRun,
@@ -933,7 +962,6 @@ function RoutineRunsView({
   loadingContent: boolean;
   pendingAction: PendingAction | null;
   waitingForRun: boolean;
-  pollElapsedSeconds: number;
   onRunFilterChange: (filter: RunFilterMode) => void;
   onEdit: () => void;
   onRun: () => void;
@@ -978,7 +1006,7 @@ function RoutineRunsView({
               {waitingForRun && (
                 <p className="mt-0.5 flex items-center gap-1.5 text-xs text-zinc-500 dark:text-zinc-400">
                   <Loader2 size={12} className="animate-spin" />
-                  Agent running{pollElapsedSeconds > 0 ? ` · ${pollElapsedSeconds}s` : ''}
+                  Waiting for output
                 </p>
               )}
             </div>
@@ -1103,7 +1131,6 @@ export function RoutinesPage() {
   const [deleteTarget, setDeleteTarget] = useState<Routine | null>(null);
   const [templateDraft, setTemplateDraft] = useState<RoutineTemplate | undefined>(undefined);
   const [runPoll, setRunPoll] = useState<RunPollState | null>(null);
-  const [pollElapsedSeconds, setPollElapsedSeconds] = useState(0);
 
   const runsRef = useRef<RoutineRun[]>([]);
   useEffect(() => {
@@ -1187,17 +1214,6 @@ export function RoutinesPage() {
   }, [isRunsRoute, location.pathname, navigate, selectedRoutineId]);
 
   useEffect(() => {
-    if (!runPoll) {
-      setPollElapsedSeconds(0);
-      return;
-    }
-    const update = () => setPollElapsedSeconds(Math.max(0, Math.floor((Date.now() - runPoll.startedAt) / 1000)));
-    update();
-    const id = setInterval(update, 1000);
-    return () => clearInterval(id);
-  }, [runPoll]);
-
-  useEffect(() => {
     if (!runPoll) return;
 
     let cancelled = false;
@@ -1213,12 +1229,7 @@ export function RoutinesPage() {
       try {
         const { runs: latest } = await fetchRoutineRuns(runPoll.jobId, RUNS_PAGE_SIZE);
         if (cancelled) return;
-        const baseline = runPoll.baselineIds ? new Set(runPoll.baselineIds) : null;
-        const newRun = latest.find((run) => {
-          if (baseline) return !baseline.has(run.id);
-          const ranAt = run.ranAt ? new Date(run.ranAt).getTime() : NaN;
-          return Number.isFinite(ranAt) && ranAt >= runPoll.startedAt - 5000;
-        });
+        const newRun = findNewRoutineRun(latest, runPoll);
         if (newRun) {
           if (selectedRoutineId === runPoll.jobId) {
             setRuns(latest);
@@ -1283,16 +1294,11 @@ export function RoutinesPage() {
   const runRoutineAction = useCallback(async (
     action: 'pause' | 'resume' | 'run',
     routine: Routine,
-    opts?: { useTimeBaseline?: boolean },
   ) => {
     setPendingAction({ action, jobId: routine.id });
-    let baselineIds: string[] | null = null;
+    const previousLatestRunId = selectedRoutineId === routine.id ? runsRef.current[0]?.id ?? null : null;
 
     try {
-      if (action === 'run' && !opts?.useTimeBaseline) {
-        baselineIds = selectedRoutineId === routine.id ? runsRef.current.map((run) => run.id) : null;
-      }
-
       let result: { job: Routine };
       if (action === 'pause') result = await pauseRoutine(routine.id, DEFAULT_PAUSE_REASON);
       else if (action === 'resume') result = await resumeRoutine(routine.id);
@@ -1302,7 +1308,7 @@ export function RoutinesPage() {
       if (action === 'run') {
         setRunPoll({
           jobId: routine.id,
-          baselineIds,
+          previousLatestRunId,
           startedAt: Date.now(),
         });
       }
@@ -1383,7 +1389,7 @@ export function RoutinesPage() {
   }, [navigate]);
   const runRoutineFromList = useCallback((routine: Routine) => {
     navigate(ROUTES.runs(routine.id));
-    runRoutineAction('run', routine, { useTimeBaseline: true }).catch(() => {});
+    runRoutineAction('run', routine).catch(() => {});
   }, [navigate, runRoutineAction]);
   const toggleRoutine = useCallback((routine: Routine) => {
     runRoutineAction(routine.enabled ? 'pause' : 'resume', routine).catch(() => {});
@@ -1440,7 +1446,6 @@ export function RoutinesPage() {
           loadingContent={loadingContent}
           pendingAction={pendingAction}
           waitingForRun={waitingForRun}
-          pollElapsedSeconds={pollElapsedSeconds}
           onRunFilterChange={setRunFilter}
           onEdit={editSelectedRoutine}
           onRun={runSelectedRoutine}
