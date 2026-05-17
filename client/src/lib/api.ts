@@ -134,7 +134,7 @@ export function fetchAgentModels() {
   return request<AgentModelsResponse>('/agent/models');
 }
 
-export function updateAgentDefaults(updates: { model?: string | null; reasoningEffort?: ReasoningEffort | null }) {
+export function updateAgentDefaults(updates: { provider?: string | null; model?: string | null; reasoningEffort?: ReasoningEffort | null }) {
   return request<AgentDefaults>('/agent/defaults', {
     method: 'PATCH',
     body: JSON.stringify(updates),

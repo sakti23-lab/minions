@@ -502,7 +502,7 @@ export class HermesWorkerAdapter implements AgentAdapter {
     return await this.client.request<AgentDefaults>('settings.get');
   }
 
-  async setDefaults(updates: { model?: string | null; reasoningEffort?: string | null }): Promise<AgentDefaults> {
+  async setDefaults(updates: { provider?: string | null; model?: string | null; reasoningEffort?: string | null }): Promise<AgentDefaults> {
     return await this.client.request<AgentDefaults>({
       type: 'settings.set',
       ...updates,

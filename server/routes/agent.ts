@@ -55,7 +55,15 @@ export function createAgentRouter(adapter: HermesWorkerAdapter): Router {
       return res.status(400).json({ error: 'Request body is required' });
     }
 
-    const updates: { model?: string | null; reasoningEffort?: string | null } = {};
+    const updates: { provider?: string | null; model?: string | null; reasoningEffort?: string | null } = {};
+
+    if ('provider' in req.body) {
+      const provider = req.body.provider;
+      if (provider !== null && typeof provider !== 'string') {
+        return res.status(400).json({ error: 'provider must be a string or null' });
+      }
+      updates.provider = typeof provider === 'string' ? provider.trim() || null : null;
+    }
 
     if ('model' in req.body) {
       const model = req.body.model;

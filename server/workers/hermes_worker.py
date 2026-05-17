@@ -340,6 +340,11 @@ def _set_defaults(request: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(cfg.get("model"), dict):
         cfg["model"] = {}
 
+    provider_present = "provider" in request
+    requested_provider = string_or_none(request.get("provider")) if provider_present else None
+    if requested_provider and not _provider_hint_is_available(requested_provider):
+        _raise_invalid_provider(requested_provider)
+
     if "model" in request:
         raw_model = request["model"]
         if isinstance(raw_model, str) and raw_model.strip():
@@ -347,21 +352,43 @@ def _set_defaults(request: dict[str, Any]) -> dict[str, Any]:
             parsed = _parse_provider_model(model_val)
             previous_provider = string_or_none(cfg["model"].get("provider"))
             if parsed:
-                provider_hint, bare_model = parsed
+                parsed_provider, bare_model = parsed
+                provider_hint = requested_provider or parsed_provider
                 if provider_hint and not _provider_hint_is_available(provider_hint):
                     _raise_invalid_provider(provider_hint)
                 cfg["model"]["default"] = bare_model
-                cfg["model"]["provider"] = provider_hint
+                if provider_hint:
+                    cfg["model"]["provider"] = provider_hint
                 if (
                     provider_hint != previous_provider
                     or provider_hint in RUNTIME_MANAGED_PROVIDER_PREFIXES
                 ):
                     _clear_model_runtime_overrides(cfg["model"])
             else:
-                cfg["model"]["default"] = model_val
-                cfg["model"].pop("provider", None)
-                if previous_provider and not previous_provider.startswith("custom"):
+                if requested_provider:
+                    resolved_model, resolved_provider = model_val, requested_provider
+                else:
+                    resolved_model, resolved_provider, _ = _resolve_model_provider(model_val, cfg)
+                if resolved_provider and not _provider_hint_is_available(resolved_provider):
+                    _raise_invalid_provider(resolved_provider)
+                cfg["model"]["default"] = resolved_model
+                if resolved_provider:
+                    cfg["model"]["provider"] = resolved_provider
+                else:
+                    cfg["model"].pop("provider", None)
+                if (
+                    resolved_provider != previous_provider
+                    or resolved_provider in RUNTIME_MANAGED_PROVIDER_PREFIXES
+                ):
                     _clear_model_runtime_overrides(cfg["model"])
+    elif provider_present:
+        previous_provider = string_or_none(cfg["model"].get("provider"))
+        if requested_provider:
+            cfg["model"]["provider"] = requested_provider
+        else:
+            cfg["model"].pop("provider", None)
+        if requested_provider != previous_provider:
+            _clear_model_runtime_overrides(cfg["model"])
 
     if "reasoningEffort" in request:
         normalized = _normalize_reasoning(request["reasoningEffort"])
@@ -527,6 +554,7 @@ def _add_model(
     source: str,
     default_model: str | None,
     label: str | None = None,
+    provider_id: str | None = None,
 ) -> None:
     if not model_id:
         return
@@ -537,6 +565,7 @@ def _add_model(
         "id": model_id,
         "label": label or model_id,
         "source": source,
+        "provider": provider_id,
         "isCurrentDefault": bool(default_model and model_id == default_model),
     })
 
@@ -649,7 +678,7 @@ def _list_authenticated_model_groups(
             if not model_id:
                 continue
             option_id = model_id if is_user_defined else _model_option_id(slug, model_id, active_provider)
-            _add_model(groups, group_name, option_id, source, default_model, label=model_id)
+            _add_model(groups, group_name, option_id, source, default_model, label=model_id, provider_id=slug)
 
     return groups
 
@@ -672,19 +701,11 @@ def _list_models() -> dict[str, Any]:
     groups = authenticated_groups or {}
 
     if default_model and not _groups_have_model(groups, default_model):
-        _add_model(groups, active_provider or "current", default_model, "current", default_model)
+        _add_model(groups, active_provider or "current", default_model, "current", default_model, provider_id=active_provider)
 
     if active_provider and authenticated_groups is None:
         for model_id in _provider_model_ids_with_timeout(active_provider):
-            _add_model(groups, active_provider, model_id, "catalog", default_model)
-
-    for entry in _custom_providers(cfg):
-        if not isinstance(entry, dict):
-            continue
-        name = str(entry.get("name") or "custom").strip() or "custom"
-        provider = f"custom:{name.lower().replace(' ', '-')}"
-        for model_id in _custom_provider_models(entry):
-            _add_model(groups, provider, model_id, "custom", default_model)
+            _add_model(groups, active_provider, model_id, "catalog", default_model, provider_id=active_provider)
 
     aliases = cfg.get("model_aliases")
     if isinstance(aliases, dict):

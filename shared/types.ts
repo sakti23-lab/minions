@@ -106,6 +106,7 @@ export interface AgentModelOption {
   id: string;
   label: string;
   source: 'current' | 'catalog' | 'custom' | 'alias';
+  provider?: string | null;
   isCurrentDefault?: boolean;
 }
 

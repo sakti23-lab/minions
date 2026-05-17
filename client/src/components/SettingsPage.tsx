@@ -5,7 +5,7 @@ import { useAgentConfig } from '../hooks/useAgentConfig';
 import { fetchAppVersion, updateAgentDefaults } from '../lib/api';
 import type { AppVersion } from '@shared/types';
 import { toErrorMessage } from '../lib/format';
-import { ModelPicker, REASONING_LABELS } from './InputToolbar';
+import { ModelPicker, REASONING_LABELS, type ModelPickerSelection } from './InputToolbar';
 import {
   REASONING_EFFORTS,
   type ReasoningEffort,
@@ -16,6 +16,16 @@ const themeOptions: { value: ThemePreference; label: string; icon: typeof Sun }[
   { value: 'light', label: 'Light', icon: Sun },
   { value: 'dark', label: 'Dark', icon: Moon },
 ];
+
+function splitQualifiedModel(value: string): { provider: string; model: string } | null {
+  if (!value.startsWith('@')) return null;
+  const separator = value.lastIndexOf(':');
+  if (separator <= 1 || separator === value.length - 1) return null;
+  return {
+    provider: value.slice(1, separator),
+    model: value.slice(separator + 1),
+  };
+}
 
 export function SettingsPage() {
   const { theme, setTheme } = useTheme();
@@ -47,7 +57,7 @@ export function SettingsPage() {
     return () => clearTimeout(timer);
   }, [savedDefaults]);
 
-  const saveDefaults = useCallback(async (updates: { model?: string | null; reasoningEffort?: ReasoningEffort | null }) => {
+  const saveDefaults = useCallback(async (updates: { provider?: string | null; model?: string | null; reasoningEffort?: ReasoningEffort | null }) => {
     setSavingDefaults(true);
     setDefaultsError(null);
     setSavedDefaults(false);
@@ -112,7 +122,14 @@ export function SettingsPage() {
               disabled={isLoadingDefaults || savingDefaults}
               title={agentDefaults?.model ? `Default: ${agentDefaults.model}` : 'Select default model'}
               showInheritOption={false}
-              onChange={(nextModel) => saveDefaults({ model: nextModel || null })}
+              onChange={(nextModel, selection?: ModelPickerSelection) => {
+                const parsed = splitQualifiedModel(nextModel);
+                const provider = selection?.provider ?? parsed?.provider ?? undefined;
+                saveDefaults({
+                  model: parsed?.model ?? (nextModel || null),
+                  ...(provider !== undefined ? { provider } : {}),
+                });
+              }}
             />
 
             <select

@@ -382,7 +382,12 @@ interface ModelPickerItem {
   value: string;
   label: string;
   provider: string;
+  providerId?: string | null;
   isCurrentDefault?: boolean;
+}
+
+export interface ModelPickerSelection {
+  provider?: string | null;
 }
 
 interface ModelPickerGroup {
@@ -399,7 +404,7 @@ export interface ModelPickerProps {
   disabled?: boolean;
   title: string;
   showInheritOption?: boolean;
-  onChange: (value: string) => void;
+  onChange: (value: string, selection?: ModelPickerSelection) => void;
 }
 
 function formatProviderLabel(provider: string): string {
@@ -487,6 +492,7 @@ export function ModelPicker({
           value: '',
           label: defaultModel ? `Inherit: ${defaultModel}` : 'Inherit default',
           provider: 'Default',
+          providerId: null,
         },
       ],
     };
@@ -496,6 +502,7 @@ export function ModelPicker({
         value,
         label: value,
         provider: 'Current',
+        providerId: null,
       });
     }
 
@@ -509,6 +516,7 @@ export function ModelPicker({
           value: model.id,
           label: model.label,
           provider: providerLabel,
+          providerId: model.provider ?? null,
           isCurrentDefault: model.isCurrentDefault,
         })),
       };
@@ -526,6 +534,7 @@ export function ModelPicker({
         value: modelId,
         label: modelId,
         provider: 'Recent',
+        providerId: null,
       } : null))
       .filter((model): model is ModelPickerItem => Boolean(model));
 
@@ -630,7 +639,7 @@ export function ModelPicker({
   }, []);
 
   const choose = useCallback((model: ModelPickerItem) => {
-    onChange(model.value);
+    onChange(model.value, { provider: model.providerId ?? null });
     if (model.value) {
       setRecentModelIds((current) => {
         const next = [model.value, ...current.filter((modelId) => modelId !== model.value)].slice(0, MAX_RECENT_MODELS);
