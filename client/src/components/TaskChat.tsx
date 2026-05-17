@@ -186,6 +186,16 @@ export function TaskChat({ taskId, initialMessage, initialSettings }: TaskChatPr
               <p className={PLACEHOLDER_CLASS}>Start a conversation with your assistant.</p>
             ) : null}
             {messages.map((msg, idx) => {
+              if (msg.role === 'system') {
+                return (
+                  <div key={msg.id} className="flex items-center gap-3 py-2 text-xs text-zinc-400 dark:text-zinc-500">
+                    <div className="h-px min-w-6 flex-1 bg-zinc-200 dark:bg-zinc-800" />
+                    <span className="min-w-0 text-center leading-relaxed">{msg.content}</span>
+                    <div className="h-px min-w-6 flex-1 bg-zinc-200 dark:bg-zinc-800" />
+                  </div>
+                );
+              }
+
               if (msg.role === 'user') {
                 return (
                   <div key={msg.id} className="flex justify-end">
