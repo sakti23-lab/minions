@@ -1,17 +1,25 @@
-import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react';
-import { ArrowUp, Loader2, ChevronDown, ChevronRight, Check, Terminal, FileText, FilePenLine, Globe, Code, Wrench } from 'lucide-react';
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, Fragment } from 'react';
+import { ArrowUp, Loader2, ChevronDown, ChevronRight, Check, Terminal, FileText, FilePenLine, Globe, Code, Wrench, X } from 'lucide-react';
 import { InputToolbar, ContextRing } from './InputToolbar';
 import { MarkdownContent } from './MarkdownContent';
 import { useChat, ToolProgressEvent } from '../hooks/useChat';
 import { useAgentConfig } from '../hooks/useAgentConfig';
 import { handleChatKeyDown } from '../lib/keyboard';
 import { compactTask, type AgentRunSettings } from '../lib/api';
+import { useStore } from '../lib/store';
+import { toErrorMessage } from '../lib/format';
 
 interface TaskChatProps {
   taskId: string;
   initialMessage?: string;
   initialSettings?: AgentRunSettings;
 }
+
+type QueuedMessage = {
+  id: string;
+  content: string;
+  settings: AgentRunSettings;
+};
 
 function ThinkingBlock({ content, isLive }: { content: string; isLive: boolean }) {
   const [expanded, setExpanded] = useState(isLive);
@@ -58,6 +66,16 @@ const TOOL_ICONS: Record<string, typeof Terminal> = {
 const CHAT_COLUMN_CLASS = 'w-full max-w-[760px] mx-auto';
 const PLACEHOLDER_CLASS = 'text-sm text-zinc-400 dark:text-zinc-500 text-center py-12';
 
+function ConversationDivider({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-3 py-2 text-xs text-zinc-400 dark:text-zinc-500">
+      <div className="h-px min-w-6 flex-1 bg-zinc-200 dark:bg-zinc-800" />
+      <span className="min-w-0 text-center leading-relaxed">{children}</span>
+      <div className="h-px min-w-6 flex-1 bg-zinc-200 dark:bg-zinc-800" />
+    </div>
+  );
+}
+
 function getToolIcon(name: string) {
   return TOOL_ICONS[name] ?? Wrench;
 }
@@ -98,12 +116,77 @@ function ToolCallBlock({ tool }: { tool: ToolProgressEvent }) {
   );
 }
 
+function QueuedMessageBar({
+  queuedMessage,
+  error,
+  isSending,
+  canRetry,
+  waitingLabel,
+  onRemove,
+  onRetry,
+}: {
+  queuedMessage: QueuedMessage;
+  error: string | null;
+  isSending: boolean;
+  canRetry: boolean;
+  waitingLabel: string;
+  onRemove: () => void;
+  onRetry: () => void;
+}) {
+  const statusLabel = isSending ? 'Sending...' : error ?? waitingLabel;
+
+  return (
+    <div className="mx-3 mb-2 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900/60 sm:mx-4">
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="shrink-0 rounded-md bg-zinc-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300">
+              Queued
+            </span>
+            <span className={`min-w-0 truncate text-xs ${error ? 'text-red-500' : 'text-zinc-500 dark:text-zinc-400'}`}>
+              {statusLabel}
+            </span>
+          </div>
+          <p className="mt-1 truncate text-sm text-zinc-700 dark:text-zinc-200">
+            {queuedMessage.content}
+          </p>
+        </div>
+        {error && canRetry && (
+          <button
+            type="button"
+            onClick={onRetry}
+            className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-zinc-700 hover:bg-zinc-200 dark:text-zinc-200 dark:hover:bg-zinc-700"
+          >
+            Retry
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onRemove}
+          disabled={isSending}
+          aria-label="Remove queued message"
+          title="Remove queued message"
+          className="shrink-0 rounded-md p-1 text-zinc-400 hover:bg-zinc-200 hover:text-zinc-700 disabled:opacity-40 dark:hover:bg-zinc-700 dark:hover:text-zinc-200"
+        >
+          <X size={14} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function TaskChat({ taskId, initialMessage, initialSettings }: TaskChatProps) {
-  const { messages, isStreaming, thinkingContent, activeTools, context, sendMessage, loadMessages } = useChat();
+  const { messages, isStreaming: liveIsStreaming, thinkingContent, activeTools, context, sendMessage, loadMessages } = useChat();
+  const taskRun = useStore((s) => s.taskRuns.get(taskId));
   const [input, setInput] = useState('');
   const [loadedTaskId, setLoadedTaskId] = useState<string | null>(null);
   const [messageLoadError, setMessageLoadError] = useState(false);
-  const [isCompacting, setIsCompacting] = useState(false);
+  const [compactInFlight, setCompactInFlight] = useState(false);
+  const [compactDone, setCompactDone] = useState(false);
+  const [compactAfterIndex, setCompactAfterIndex] = useState(-1);
+  const [queuedMessage, setQueuedMessage] = useState<QueuedMessage | null>(null);
+  const [queuedSendError, setQueuedSendError] = useState<string | null>(null);
+  const [autoSendingQueuedId, setAutoSendingQueuedId] = useState<string | null>(null);
   const startupRef = useRef({ taskId, initialMessage, initialSettings });
   if (startupRef.current.taskId !== taskId) {
     startupRef.current = { taskId, initialMessage, initialSettings };
@@ -118,11 +201,31 @@ export function TaskChat({ taskId, initialMessage, initialSettings }: TaskChatPr
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const didInitialScrollRef = useRef(false);
+  const pendingAutoSendRef = useRef<string | null>(null);
+  const queuedMessageRef = useRef<QueuedMessage | null>(null);
+  const runIsStreaming = taskRun?.kind === 'chat' && taskRun.status === 'streaming';
+  const isStreaming = liveIsStreaming || runIsStreaming;
+  const isCompacting = taskRun?.kind === 'compact' && taskRun.status === 'compacting';
+  const compactionBlocker = isCompacting || compactInFlight;
+  const taskBusyForQueue = isStreaming || compactionBlocker;
+  const queuedIsSending = autoSendingQueuedId === queuedMessage?.id;
+
+  useEffect(() => {
+    queuedMessageRef.current = queuedMessage;
+  }, [queuedMessage]);
 
   useEffect(() => {
     let cancelled = false;
     setLoadedTaskId(null);
     setMessageLoadError(false);
+    setCompactInFlight(false);
+    setCompactDone(false);
+    setCompactAfterIndex(-1);
+    setQueuedMessage(null);
+    setQueuedSendError(null);
+    setAutoSendingQueuedId(null);
+    queuedMessageRef.current = null;
+    pendingAutoSendRef.current = null;
     didInitialScrollRef.current = false;
     loadMessages(taskId)
       .then((loadedMessages) => {
@@ -155,23 +258,87 @@ export function TaskChat({ taskId, initialMessage, initialSettings }: TaskChatPr
     didInitialScrollRef.current = true;
   }, [loadedTaskId, messages.length, taskId]);
 
+  useLayoutEffect(() => {
+    if (!compactInFlight && !compactDone) return;
+    const container = messagesContainerRef.current;
+    if (container) container.scrollTop = container.scrollHeight;
+  }, [compactInFlight, compactDone]);
+
+  const sendQueuedMessage = useCallback(async (message: QueuedMessage) => {
+    if (pendingAutoSendRef.current) return;
+
+    pendingAutoSendRef.current = message.id;
+    setAutoSendingQueuedId(message.id);
+    setQueuedSendError(null);
+
+    const result = await sendMessage(taskId, message.content, message.settings, { appendLocalError: false });
+    if (result.ok) {
+      setQueuedMessage((current) => current?.id === message.id ? null : current);
+    } else if (queuedMessageRef.current?.id === message.id) {
+      setQueuedSendError(result.error);
+    }
+
+    if (pendingAutoSendRef.current === message.id) pendingAutoSendRef.current = null;
+    setAutoSendingQueuedId((current) => current === message.id ? null : current);
+  }, [sendMessage, taskId]);
+
+  useEffect(() => {
+    if (!queuedMessage || taskBusyForQueue || configPending || queuedSendError) return;
+    void sendQueuedMessage(queuedMessage);
+  }, [configPending, queuedMessage, queuedSendError, sendQueuedMessage, taskBusyForQueue]);
+
   const handleSubmit = useCallback(async () => {
     const text = input.trim();
-    if (!text || isStreaming || isCompacting || configPending) return;
+    if (!text || configPending) return;
+    if (queuedMessage) return;
+
+    const settings = { model, reasoningEffort };
+    if (taskBusyForQueue) {
+      setQueuedMessage({
+        id: crypto.randomUUID(),
+        content: text,
+        settings,
+      });
+      setQueuedSendError(null);
+      setInput('');
+      return;
+    }
+
     setInput('');
-    await sendMessage(taskId, text, { model, reasoningEffort });
-  }, [configPending, input, isCompacting, isStreaming, taskId, sendMessage, model, reasoningEffort]);
+    const result = await sendMessage(taskId, text, settings);
+    if (!result.ok && result.conflict) setInput(text);
+  }, [configPending, input, queuedMessage, model, reasoningEffort, taskBusyForQueue, sendMessage, taskId]);
 
   const handleCompact = useCallback(async () => {
-    if (isCompacting) return;
-    setIsCompacting(true);
+    if (compactionBlocker || isStreaming) return;
+    setCompactInFlight(true);
+    setCompactDone(false);
     try {
       await compactTask(taskId);
-      await loadMessages(taskId);
+      const compactedMessages = await loadMessages(taskId);
+      setCompactAfterIndex(compactedMessages.length);
+      setCompactDone(true);
+    } catch (error) {
+      if (queuedMessageRef.current) {
+        setQueuedSendError(toErrorMessage(error, 'Compaction failed'));
+      }
+      throw error;
     } finally {
-      setIsCompacting(false);
+      setCompactInFlight(false);
     }
-  }, [isCompacting, taskId, loadMessages]);
+  }, [compactionBlocker, isStreaming, loadMessages, taskId]);
+
+  const handleRemoveQueuedMessage = useCallback(() => {
+    if (queuedIsSending) return;
+    setQueuedMessage(null);
+    setQueuedSendError(null);
+  }, [queuedIsSending]);
+
+  const handleRetryQueuedMessage = useCallback(() => {
+    if (!queuedMessage || taskBusyForQueue || configPending || queuedIsSending) return;
+    setQueuedSendError(null);
+    void sendQueuedMessage(queuedMessage);
+  }, [configPending, queuedIsSending, queuedMessage, sendQueuedMessage, taskBusyForQueue]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => handleChatKeyDown(e, handleSubmit),
@@ -198,23 +365,29 @@ export function TaskChat({ taskId, initialMessage, initialSettings }: TaskChatPr
               <p className={PLACEHOLDER_CLASS}>Start a conversation with your assistant.</p>
             ) : null}
             {messages.map((msg, idx) => {
+              const compactDivider = compactDone && idx === compactAfterIndex ? (
+                <ConversationDivider>Conversation compacted</ConversationDivider>
+              ) : null;
+
               if (msg.role === 'system') {
                 return (
-                  <div key={msg.id} className="flex items-center gap-3 py-2 text-xs text-zinc-400 dark:text-zinc-500">
-                    <div className="h-px min-w-6 flex-1 bg-zinc-200 dark:bg-zinc-800" />
-                    <span className="min-w-0 text-center leading-relaxed">{msg.content}</span>
-                    <div className="h-px min-w-6 flex-1 bg-zinc-200 dark:bg-zinc-800" />
-                  </div>
+                  <Fragment key={msg.id}>
+                    {compactDivider}
+                    <ConversationDivider>{msg.content}</ConversationDivider>
+                  </Fragment>
                 );
               }
 
               if (msg.role === 'user') {
                 return (
-                  <div key={msg.id} className="flex justify-end">
-                    <div className="max-w-[92%] rounded-2xl bg-zinc-100 px-3.5 py-2.5 text-sm leading-relaxed text-zinc-900 whitespace-pre-wrap dark:bg-zinc-800 dark:text-zinc-100 sm:max-w-[85%] sm:px-4">
-                      {msg.content}
+                  <Fragment key={msg.id}>
+                    {compactDivider}
+                    <div className="flex justify-end">
+                      <div className="max-w-[92%] rounded-2xl bg-zinc-100 px-3.5 py-2.5 text-sm leading-relaxed text-zinc-900 whitespace-pre-wrap dark:bg-zinc-800 dark:text-zinc-100 sm:max-w-[85%] sm:px-4">
+                        {msg.content}
+                      </div>
                     </div>
-                  </div>
+                  </Fragment>
                 );
               }
 
@@ -225,42 +398,56 @@ export function TaskChat({ taskId, initialMessage, initialSettings }: TaskChatPr
               const showSpinner = isLastAssistant && isStreaming && !msg.content && !thinkingContent && !activeTools.some(t => t.status === 'running');
 
               return (
-                <div key={msg.id} className="flex justify-start">
-                  <div className="w-full sm:px-2">
-                    {thinkingToShow && (
-                      <ThinkingBlock content={thinkingToShow} isLive={isLiveThinking} />
-                    )}
-                    {toolsToShow.length > 0 && (
-                      <div className="mb-4 space-y-2.5">
-                        {toolsToShow.map((tool, i) => (
-                          <ToolCallBlock key={`${tool.tool}-${i}`} tool={tool} />
-                        ))}
-                      </div>
-                    )}
-                    <div className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
-                      {msg.content ? (
-                        <MarkdownContent content={msg.content} isStreaming={isLastAssistant && isStreaming} />
-                      ) : (
-                        showSpinner && (
-                          <span className="inline-flex items-center gap-2 text-zinc-400 dark:text-zinc-500">
-                            <span>Thinking</span>
-                            <span className="inline-flex gap-1">
-                              {[0, 150, 300].map((delay) => (
-                                <span
-                                  key={delay}
-                                  className="w-1.5 h-1.5 rounded-full bg-current animate-pulse"
-                                  style={{ animationDelay: `${delay}ms` }}
-                                />
-                              ))}
-                            </span>
-                          </span>
-                        )
+                <Fragment key={msg.id}>
+                  {compactDivider}
+                  <div className="flex justify-start">
+                    <div className="w-full sm:px-2">
+                      {thinkingToShow && (
+                        <ThinkingBlock content={thinkingToShow} isLive={isLiveThinking} />
                       )}
+                      {toolsToShow.length > 0 && (
+                        <div className="mb-4 space-y-2.5">
+                          {toolsToShow.map((tool, i) => (
+                            <ToolCallBlock key={`${tool.tool}-${i}`} tool={tool} />
+                          ))}
+                        </div>
+                      )}
+                      <div className="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
+                        {msg.content ? (
+                          <MarkdownContent content={msg.content} isStreaming={isLastAssistant && isStreaming} />
+                        ) : (
+                          showSpinner && (
+                            <span className="inline-flex items-center gap-2 text-zinc-400 dark:text-zinc-500">
+                              <span>Thinking</span>
+                              <span className="inline-flex gap-1">
+                                {[0, 150, 300].map((delay) => (
+                                  <span
+                                    key={delay}
+                                    className="w-1.5 h-1.5 rounded-full bg-current animate-pulse"
+                                    style={{ animationDelay: `${delay}ms` }}
+                                  />
+                                ))}
+                              </span>
+                            </span>
+                          )
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
+                </Fragment>
               );
             })}
+            {compactInFlight && (
+              <ConversationDivider>
+                <span className="inline-flex items-center gap-1.5">
+                  <Loader2 size={10} className="shrink-0 animate-spin" />
+                  Compacting conversation…
+                </span>
+              </ConversationDivider>
+            )}
+            {compactDone && compactAfterIndex >= messages.length && (
+              <ConversationDivider>Conversation compacted</ConversationDivider>
+            )}
           </div>
         </div>
       </div>
@@ -272,18 +459,29 @@ export function TaskChat({ taskId, initialMessage, initialSettings }: TaskChatPr
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            disabled={isCompacting}
+            disabled={configPending}
             placeholder="Message your assistant..."
             rows={2}
             className="w-full resize-none bg-transparent px-4 pt-3 pb-1 text-sm leading-relaxed text-zinc-900 placeholder-zinc-400 focus:outline-none disabled:opacity-60 dark:text-zinc-100 dark:placeholder-zinc-500 sm:px-5"
           />
+          {queuedMessage && (
+            <QueuedMessageBar
+              queuedMessage={queuedMessage}
+              error={queuedSendError}
+              isSending={queuedIsSending}
+              canRetry={!taskBusyForQueue && !configPending && !queuedIsSending}
+              waitingLabel={compactionBlocker ? 'Sends after compaction' : 'Sends after current response'}
+              onRemove={handleRemoveQueuedMessage}
+              onRetry={handleRetryQueuedMessage}
+            />
+          )}
           <div className="flex items-end justify-between gap-3 px-3 pb-3 sm:px-4">
             <InputToolbar
               model={model}
               reasoningEffort={reasoningEffort}
               defaults={toolbarDefaults}
               modelGroups={modelGroups}
-              disabled={isStreaming || isCompacting}
+              disabled={isStreaming || compactionBlocker || queuedMessage !== null}
               onModelChange={setModel}
               onReasoningEffortChange={setReasoningEffort}
             />
@@ -292,13 +490,13 @@ export function TaskChat({ taskId, initialMessage, initialSettings }: TaskChatPr
                 <ContextRing
                   context={context}
                   onCompact={handleCompact}
-                  compacting={isCompacting}
-                  disabled={isStreaming || configPending}
+                  compacting={compactionBlocker}
+                  compactDisabled={isStreaming || configPending || queuedMessage !== null}
                 />
               )}
               <button
                 onClick={handleSubmit}
-                disabled={!input.trim() || isStreaming || isCompacting || configPending}
+                disabled={!input.trim() || configPending || queuedMessage !== null}
                 className="p-2 rounded-full bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 disabled:opacity-30 hover:bg-zinc-700 dark:hover:bg-zinc-300 transition-colors"
               >
                 <ArrowUp size={14} />

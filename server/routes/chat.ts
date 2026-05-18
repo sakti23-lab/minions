@@ -10,8 +10,10 @@ import {
   getRunContext,
   getRunStatus,
   sendSnapshot,
+  startCompactionRun,
   startRun,
   subscribe,
+  updateRunStatus,
 } from '../live-chat.js';
 import { taskRunSettings, parseRunSettingsBody } from '../agent-settings.js';
 import { TASK_AGENT_SYSTEM_PROMPT } from '../prompts/task-agent.js';
@@ -24,6 +26,26 @@ export const chatRouter = Router();
 function hasNoSession(task: Task): boolean {
   if (task.last_agent_response_at !== null) return false;
   return getRunStatus(task.id)?.status !== 'streaming';
+}
+
+function isTaskRunActive(status: ReturnType<typeof getRunStatus>): boolean {
+  return status?.status === 'streaming' || status?.status === 'compacting';
+}
+
+function completeTaskRun(
+  taskId: string,
+  runId: string,
+  status: 'done' | 'error',
+  ttlMs: number,
+  options?: Parameters<typeof updateRunStatus>[2],
+): void {
+  const updated = updateRunStatus(taskId, status, options);
+  if (updated) {
+    broadcast({ type: 'task_run_updated', run: updated });
+    const liveRun = getRun(taskId);
+    if (liveRun) broadcastLive(taskId, { type: 'snapshot', run: liveRun });
+  }
+  finishRun(taskId, ttlMs, runId);
 }
 
 chatRouter.get('/:id/messages', async (req, res) => {
@@ -106,18 +128,18 @@ async function consumeChatRun(runTask: Task, sessionId: string, content: string,
     applyEvent(runTask.id, event);
     broadcastLive(runTask.id, event);
   } finally {
-    const currentRun = getRunStatus(runTask.id);
-    if (!sawDone && currentRun?.status === 'streaming') {
+    let finalRun = getRunStatus(runTask.id);
+    if (!sawDone && finalRun?.status === 'streaming') {
       const event: StreamEvent = { type: 'done', sessionId };
       sawDone = true;
       applyEvent(runTask.id, event);
       broadcastLive(runTask.id, event);
+      finalRun = getRunStatus(runTask.id);
     }
 
-    const finishedRun = getRunStatus(runTask.id);
-    if (finishedRun) broadcast({ type: 'task_run_updated', run: finishedRun });
+    if (finalRun) broadcast({ type: 'task_run_updated', run: finalRun });
 
-    if (sawDone && finishedRun?.status === 'done') {
+    if (sawDone && finalRun?.status === 'done') {
       const responseAt = Date.now();
       const updated = recordAgentResponse(runTask.id, responseAt, doneContext ?? null);
       if (updated) broadcast({ type: 'task_updated', task: updated });
@@ -127,7 +149,7 @@ async function consumeChatRun(runTask: Task, sessionId: string, content: string,
       touchTask(runTask.id);
     }
 
-    const ttl = finishedRun?.status === 'error' ? ERROR_SNAPSHOT_TTL_MS : DONE_SNAPSHOT_TTL_MS;
+    const ttl = finalRun?.status === 'error' ? ERROR_SNAPSHOT_TTL_MS : DONE_SNAPSHOT_TTL_MS;
     finishRun(runTask.id, ttl, runId);
   }
 }
@@ -149,7 +171,7 @@ chatRouter.post('/:id/messages', async (req, res) => {
   }
 
   const activeRun = getRunStatus(task.id);
-  if (activeRun?.status === 'streaming') {
+  if (isTaskRunActive(activeRun)) {
     return res.status(409).json({ error: 'This task already has a message in progress' });
   }
 
@@ -177,13 +199,12 @@ chatRouter.post('/:id/messages', async (req, res) => {
 
   const sessionId = runTask.id;
 
-  const run = startRun(runTask.id, sessionId, content);
-  const startedRun = getRunStatus(runTask.id);
-  if (startedRun) broadcast({ type: 'task_run_updated', run: startedRun });
-  broadcastLive(runTask.id, { type: 'snapshot', run });
-  void consumeChatRun(runTask, sessionId, content, run.runId);
+  const { snapshot, state } = startRun(runTask.id, sessionId, content);
+  broadcast({ type: 'task_run_updated', run: state });
+  broadcastLive(runTask.id, { type: 'snapshot', run: snapshot });
+  void consumeChatRun(runTask, sessionId, content, snapshot.runId);
 
-  res.status(202).json({ runId: run.runId });
+  res.status(202).json({ runId: snapshot.runId });
 });
 
 chatRouter.post('/:id/compact', async (req, res) => {
@@ -191,12 +212,19 @@ chatRouter.post('/:id/compact', async (req, res) => {
   if (!task) return res.status(404).json({ error: 'Task not found' });
 
   const activeRun = getRunStatus(task.id);
-  if (activeRun?.status === 'streaming') {
-    return res.status(409).json({ error: 'Cannot compact while a message is streaming' });
+  if (isTaskRunActive(activeRun)) {
+    return res.status(409).json({
+      error: activeRun?.status === 'compacting'
+        ? 'This task is already compacting'
+        : 'Cannot compact while a message is streaming',
+    });
   }
 
   const focusTopic = typeof req.body?.focusTopic === 'string' ? req.body.focusTopic.trim() || null : null;
   const currentTokens = task.last_context_used_tokens ?? undefined;
+  const { snapshot, state } = startCompactionRun(task.id, task.id);
+  broadcast({ type: 'task_run_updated', run: state });
+  broadcastLive(task.id, { type: 'snapshot', run: snapshot });
 
   try {
     const result: CompactResult = await adapter.compressSession(task.id, {
@@ -211,9 +239,13 @@ chatRouter.post('/:id/compact', async (req, res) => {
       if (updated) broadcast({ type: 'task_updated', task: updated });
     }
 
+    completeTaskRun(task.id, snapshot.runId, 'done', DONE_SNAPSHOT_TTL_MS, { context: result.context });
+
     res.json(result);
   } catch (error) {
-    res.status(503).json({ error: toErrorMessage(error, 'Compaction failed') });
+    const message = toErrorMessage(error, 'Compaction failed');
+    completeTaskRun(task.id, snapshot.runId, 'error', ERROR_SNAPSHOT_TTL_MS, { error: message });
+    res.status(503).json({ error: message });
   }
 });
 

@@ -1,6 +1,6 @@
 import type { Response } from 'express';
 import { v4 as uuid } from 'uuid';
-import type { LiveChatRun, LiveChatMessage, TaskRunState, ToolProgressEvent } from '../shared/types.js';
+import type { LiveChatRun, LiveChatMessage, LiveChatRunStatus, TaskRunState, ToolProgressEvent } from '../shared/types.js';
 import type { StreamEvent } from './adapters/types.js';
 
 export type LiveChatEvent = StreamEvent | { type: 'snapshot'; run: LiveChatRun };
@@ -27,6 +27,7 @@ function runState(run: LiveChatRun): TaskRunState {
   return {
     taskId: run.taskId,
     runId: run.runId,
+    kind: run.kind,
     status: run.status,
     startedAt: run.startedAt,
     updatedAt: run.updatedAt,
@@ -102,42 +103,52 @@ function startKeepalive(): void {
   }, KEEPALIVE_INTERVAL_MS);
 }
 
-export function startRun(taskId: string, sessionId: string, userContent: string): LiveChatRun {
-  const expiryTimer = expiryTimers.get(taskId);
-  if (expiryTimer) {
-    clearTimeout(expiryTimer);
+function clearExpiry(taskId: string): void {
+  const timer = expiryTimers.get(taskId);
+  if (timer) {
+    clearTimeout(timer);
     expiryTimers.delete(taskId);
   }
+}
 
+export type RunStart = { snapshot: LiveChatRun; state: TaskRunState };
+
+function storeRun(run: LiveChatRun): RunStart {
+  runs.set(run.taskId, run);
+  return { snapshot: cloneRun(run), state: runState(run) };
+}
+
+export function startRun(taskId: string, sessionId: string, userContent: string): RunStart {
+  clearExpiry(taskId);
   const now = Date.now();
-  const run: LiveChatRun = {
+  return storeRun({
     taskId,
     runId: uuid(),
+    kind: 'chat',
     sessionId,
     status: 'streaming',
     startedAt: now,
     updatedAt: now,
     messages: [
-      {
-        id: uuid(),
-        task_id: taskId,
-        role: 'user',
-        content: userContent,
-        created_at: now,
-      },
-      {
-        id: uuid(),
-        task_id: taskId,
-        role: 'assistant',
-        content: '',
-        created_at: now,
-        tools: [],
-      },
+      { id: uuid(), task_id: taskId, role: 'user', content: userContent, created_at: now },
+      { id: uuid(), task_id: taskId, role: 'assistant', content: '', created_at: now, tools: [] },
     ],
-  };
+  });
+}
 
-  runs.set(taskId, run);
-  return cloneRun(run);
+export function startCompactionRun(taskId: string, sessionId: string): RunStart {
+  clearExpiry(taskId);
+  const now = Date.now();
+  return storeRun({
+    taskId,
+    runId: uuid(),
+    kind: 'compact',
+    sessionId,
+    status: 'compacting',
+    startedAt: now,
+    updatedAt: now,
+    messages: [],
+  });
 }
 
 export function applyEvent(taskId: string, event: StreamEvent): void {
@@ -191,6 +202,21 @@ export function getRunStatuses(): TaskRunState[] {
   return Array.from(runs.values()).map(runState);
 }
 
+export function updateRunStatus(
+  taskId: string,
+  status: Extract<LiveChatRunStatus, 'done' | 'error'>,
+  options?: { context?: LiveChatRun['context']; error?: string },
+): TaskRunState | undefined {
+  const run = runs.get(taskId);
+  if (!run) return undefined;
+
+  run.status = status;
+  run.updatedAt = Date.now();
+  if (options?.context !== undefined) run.context = options.context;
+  if (options?.error) run.error = options.error;
+  return runState(run);
+}
+
 export function subscribe(taskId: string, res: Response): void {
   let taskSubscribers = subscribers.get(taskId);
   if (!taskSubscribers) {
@@ -223,9 +249,7 @@ export function broadcast(taskId: string, event: LiveChatEvent): void {
 
 export function finishRun(taskId: string, ttlMs: number, runId: string): void {
   if (!runs.has(taskId)) return;
-
-  const expiryTimer = expiryTimers.get(taskId);
-  if (expiryTimer) clearTimeout(expiryTimer);
+  clearExpiry(taskId);
 
   const timer = setTimeout(() => {
     if (runs.get(taskId)?.runId === runId) runs.delete(taskId);

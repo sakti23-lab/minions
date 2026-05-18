@@ -2,7 +2,7 @@ import { useDroppable } from '@dnd-kit/core';
 import { MoreHorizontal, Plus } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { Task, TaskStatus } from '@shared/types';
+import type { Task, TaskRunState, TaskStatus } from '@shared/types';
 import { STATUS_META } from '../lib/constants';
 import { ColumnActionsMenu } from './ColumnActionsMenu';
 import { StatusIcon } from './StatusIcon';
@@ -11,12 +11,12 @@ import { TaskCard } from './TaskCard';
 interface ColumnProps {
   status: TaskStatus;
   tasks: Task[];
-  streamingTaskIds: Set<string>;
+  taskRuns: Map<string, TaskRunState>;
   isLast?: boolean;
   onRequestDeleteAll: (status: TaskStatus) => void;
 }
 
-export function Column({ status, tasks, streamingTaskIds, isLast = false, onRequestDeleteAll }: ColumnProps) {
+export function Column({ status, tasks, taskRuns, isLast = false, onRequestDeleteAll }: ColumnProps) {
   const { label } = STATUS_META[status];
   const { setNodeRef, isOver } = useDroppable({ id: status });
   const navigate = useNavigate();
@@ -73,7 +73,7 @@ export function Column({ status, tasks, streamingTaskIds, isLast = false, onRequ
         }`}
       >
         {tasks.map((task) => (
-          <TaskCard key={task.id} task={task} isStreaming={streamingTaskIds.has(task.id)} />
+          <TaskCard key={task.id} task={task} run={taskRuns.get(task.id)} />
         ))}
         {showAddButton && (
           <div className="h-9 shrink-0">

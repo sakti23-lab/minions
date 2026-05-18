@@ -12,6 +12,14 @@ import type { AgentRunSettings } from '../lib/api';
 
 export type { ContextUsage, ToolProgressEvent };
 
+export type SendMessageResult =
+  | { ok: true; runId?: string }
+  | { ok: false; conflict?: boolean; error: string };
+
+interface SendMessageOptions {
+  appendLocalError?: boolean;
+}
+
 type ChatMessage = Omit<TaskMessage, 'task_id'> & {
   task_id?: string;
   tools?: ToolProgressEvent[];
@@ -158,9 +166,10 @@ export function useChat() {
     const liveRun = liveRunRef.current;
 
     if (liveRun) {
-      const merged = messagesWithLiveRun(committed, liveRun);
-      const assistant = findLastAssistant(liveRun.messages);
-      const streaming = liveRun.status === 'streaming';
+      const isChatRun = liveRun.kind === 'chat';
+      const merged = isChatRun ? messagesWithLiveRun(committed, liveRun) : committed;
+      const assistant = isChatRun ? findLastAssistant(liveRun.messages) : undefined;
+      const streaming = isChatRun && liveRun.status === 'streaming';
 
       setMessages(merged);
       setIsStreaming(streaming);
@@ -323,7 +332,12 @@ export function useChat() {
     setActiveTools([]);
   }, []);
 
-  const sendMessage = useCallback(async (taskId: string, content: string, settings?: AgentRunSettings) => {
+  const sendMessage = useCallback(async (
+    taskId: string,
+    content: string,
+    settings?: AgentRunSettings,
+    options?: SendMessageOptions,
+  ): Promise<SendMessageResult> => {
     openLiveSubscription(taskId);
 
     const abort = new AbortController();
@@ -343,12 +357,19 @@ export function useChat() {
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({})) as { error?: string };
-        if (res.status !== 409) appendLocalSendError(content, body.error || `HTTP ${res.status}`);
+        const error = body.error || `HTTP ${res.status}`;
+        if (res.status !== 409 && options?.appendLocalError !== false) appendLocalSendError(content, error);
+        return { ok: false, conflict: res.status === 409, error };
       }
+      const body = await res.json().catch(() => ({})) as { runId?: string };
+      return { ok: true, runId: body.runId };
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {
-        appendLocalSendError(content, toErrorMessage(err, 'Failed to send message.'));
+        const error = toErrorMessage(err, 'Failed to send message.');
+        if (options?.appendLocalError !== false) appendLocalSendError(content, error);
+        return { ok: false, error };
       }
+      return { ok: false, error: 'Message send was cancelled.' };
     } finally {
       if (postAbortRef.current === abort) postAbortRef.current = null;
     }

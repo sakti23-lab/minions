@@ -1,17 +1,17 @@
 import { create } from 'zustand';
-import type { Task, TaskStatus } from '@shared/types';
+import type { Task, TaskRunState, TaskStatus } from '@shared/types';
 
 interface AppState {
   tasks: Task[];
-  streamingTaskIds: Set<string>;
+  taskRuns: Map<string, TaskRunState>;
   tasksLoaded: boolean;
   sidebarCollapsed: boolean;
 
   setTasks: (tasks: Task[]) => void;
   upsertTask: (task: Task) => void;
   removeTask: (taskId: string) => void;
-  setStreamingTasks: (ids: string[]) => void;
-  setTaskStreaming: (taskId: string, streaming: boolean) => void;
+  setTaskRuns: (runs: TaskRunState[]) => void;
+  setTaskRun: (run: TaskRunState) => void;
   toggleSidebar: () => void;
 }
 
@@ -19,9 +19,13 @@ function tasksEqual(a: Task, b: Task): boolean {
   return a.updated_at === b.updated_at && a.last_viewed_at === b.last_viewed_at;
 }
 
+export function isActiveRun(run: TaskRunState): boolean {
+  return run.status === 'streaming' || run.status === 'compacting';
+}
+
 export const useStore = create<AppState>((set) => ({
   tasks: [],
-  streamingTaskIds: new Set<string>(),
+  taskRuns: new Map<string, TaskRunState>(),
   tasksLoaded: false,
   sidebarCollapsed: localStorage.getItem('sidebarCollapsed') === 'true',
 
@@ -41,27 +45,42 @@ export const useStore = create<AppState>((set) => ({
   removeTask: (taskId) =>
     set((state) => {
       const tasks = state.tasks.filter((t) => t.id !== taskId);
-      if (!state.streamingTaskIds.has(taskId)) return { tasks };
-      const next = new Set(state.streamingTaskIds);
-      next.delete(taskId);
-      return { tasks, streamingTaskIds: next };
+      if (!state.taskRuns.has(taskId)) return { tasks };
+      const taskRuns = new Map(state.taskRuns);
+      taskRuns.delete(taskId);
+      return { tasks, taskRuns };
     }),
 
-  setStreamingTasks: (ids) =>
+  setTaskRuns: (runs) =>
     set((state) => {
-      if (ids.length === state.streamingTaskIds.size && ids.every((id) => state.streamingTaskIds.has(id))) {
+      const activeRuns = runs.filter(isActiveRun);
+      if (
+        activeRuns.length === state.taskRuns.size &&
+        activeRuns.every((run) => {
+          const current = state.taskRuns.get(run.taskId);
+          return current?.runId === run.runId && current.status === run.status && current.kind === run.kind;
+        })
+      ) {
         return state;
       }
-      return { streamingTaskIds: new Set(ids) };
+      return { taskRuns: new Map(activeRuns.map((run) => [run.taskId, run])) };
     }),
 
-  setTaskStreaming: (taskId, streaming) =>
+  setTaskRun: (run) =>
     set((state) => {
-      if (streaming === state.streamingTaskIds.has(taskId)) return state;
-      const next = new Set(state.streamingTaskIds);
-      if (streaming) next.add(taskId);
-      else next.delete(taskId);
-      return { streamingTaskIds: next };
+      const current = state.taskRuns.get(run.taskId);
+      const shouldStore = isActiveRun(run);
+      if (
+        (!shouldStore && !current) ||
+        (shouldStore && current?.runId === run.runId && current.status === run.status && current.kind === run.kind)
+      ) {
+        return state;
+      }
+
+      const taskRuns = new Map(state.taskRuns);
+      if (shouldStore) taskRuns.set(run.taskId, run);
+      else taskRuns.delete(run.taskId);
+      return { taskRuns };
     }),
 
   toggleSidebar: () =>

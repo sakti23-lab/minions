@@ -8,10 +8,10 @@ interface ContextRingProps {
   context: ContextUsage;
   onCompact?: () => Promise<void>;
   compacting?: boolean;
-  disabled?: boolean;
+  compactDisabled?: boolean;
 }
 
-export function ContextRing({ context, onCompact, compacting = false, disabled }: ContextRingProps) {
+export function ContextRing({ context, onCompact, compacting = false, compactDisabled = false }: ContextRingProps) {
   const pct = context.window_tokens > 0
     ? Math.round((context.used_tokens / context.window_tokens) * 100)
     : 0;
@@ -58,7 +58,7 @@ export function ContextRing({ context, onCompact, compacting = false, disabled }
   }, [open]);
 
   const handleCompact = useCallback(async () => {
-    if (!onCompact || compacting || disabled) return;
+    if (!onCompact || compacting || compactDisabled) return;
     setError(null);
     try {
       await onCompact();
@@ -66,15 +66,14 @@ export function ContextRing({ context, onCompact, compacting = false, disabled }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Compaction failed');
     }
-  }, [compacting, disabled, onCompact]);
+  }, [compactDisabled, compacting, onCompact]);
 
   return (
     <div ref={containerRef} className="relative">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        disabled={disabled}
-        className="relative w-[26px] h-[26px] group cursor-pointer disabled:cursor-default"
+        className="relative w-[26px] h-[26px] group cursor-pointer"
         title={`Context: ${pct}% used`}
       >
         <svg width={size} height={size} className="-rotate-90">
@@ -126,7 +125,7 @@ export function ContextRing({ context, onCompact, compacting = false, disabled }
                 <button
                   type="button"
                   onClick={handleCompact}
-                  disabled={disabled || compacting}
+                  disabled={compactDisabled || compacting}
                   className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 hover:bg-zinc-700 dark:hover:bg-zinc-300 disabled:opacity-50 transition-colors"
                 >
                   {compacting ? (

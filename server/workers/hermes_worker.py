@@ -1205,7 +1205,18 @@ def _submit_background_agent_request(
     *,
     name_prefix: str,
     handler: Callable[[dict[str, Any]], dict[str, Any]],
+    task_key: str | None = None,
 ) -> None:
+    if task_key and not _try_mark_task_active(task_key, request_id):
+        _send_error(
+            request_id,
+            WorkerError(
+                "This task is already running. Wait for the current operation to finish, then retry.",
+                code="task_busy",
+            ),
+        )
+        return
+
     def runner() -> None:
         acquired = False
         try:
@@ -1217,6 +1228,8 @@ def _submit_background_agent_request(
         finally:
             if acquired:
                 AGENT_SEMAPHORE.release()
+            if task_key:
+                _clear_task_active(task_key, request_id)
 
     threading.Thread(
         target=runner,
@@ -1442,7 +1455,13 @@ def _handle_request(request: dict[str, Any]) -> None:
         elif request_type == "chat":
             _submit_chat_request(request_id, request)
         elif request_type == "session.compress":
-            _submit_background_agent_request(request_id, request, name_prefix="compress", handler=_run_compress)
+            _submit_background_agent_request(
+                request_id,
+                request,
+                name_prefix="compress",
+                handler=_run_compress,
+                task_key=_task_key_for(request),
+            )
         elif request_type == "judge.completion":
             _submit_background_agent_request(request_id, request, name_prefix="judge", handler=_judge_completion)
         elif request_type == "title.generate":

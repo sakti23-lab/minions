@@ -7,8 +7,8 @@ export function useTasks() {
   const setTasks = useStore((s) => s.setTasks);
   const upsertTask = useStore((s) => s.upsertTask);
   const removeTask = useStore((s) => s.removeTask);
-  const setStreamingTasks = useStore((s) => s.setStreamingTasks);
-  const setTaskStreaming = useStore((s) => s.setTaskStreaming);
+  const setTaskRuns = useStore((s) => s.setTaskRuns);
+  const setTaskRun = useStore((s) => s.setTaskRun);
   const retryRef = useRef(0);
 
   useEffect(() => {
@@ -39,9 +39,9 @@ export function useTasks() {
           } else if (event.type === 'task_deleted') {
             removeTask(event.taskId);
           } else if (event.type === 'task_runs_snapshot') {
-            setStreamingTasks(event.runs.filter((r) => r.status === 'streaming').map((r) => r.taskId));
+            setTaskRuns(event.runs);
           } else if (event.type === 'task_run_updated') {
-            setTaskStreaming(event.run.taskId, event.run.status === 'streaming');
+            setTaskRun(event.run);
           }
         } catch {}
       };
@@ -61,5 +61,5 @@ export function useTasks() {
       clearTimeout(retryTimeout);
       es?.close();
     };
-  }, [setTasks, upsertTask, removeTask, setStreamingTasks, setTaskStreaming]);
+  }, [setTasks, upsertTask, removeTask, setTaskRuns, setTaskRun]);
 }

@@ -45,11 +45,13 @@ export interface ToolProgressEvent {
   label?: string;
 }
 
-export type LiveChatRunStatus = 'streaming' | 'done' | 'error';
+export type TaskRunKind = 'chat' | 'compact';
+export type LiveChatRunStatus = 'streaming' | 'compacting' | 'done' | 'error';
 
 export interface TaskRunState {
   taskId: string;
   runId: string;
+  kind: TaskRunKind;
   status: LiveChatRunStatus;
   startedAt: number;
   updatedAt: number;
@@ -67,6 +69,7 @@ export type LiveChatMessage = TaskMessage & { tools?: ToolProgressEvent[] };
 export interface LiveChatRun {
   taskId: string;
   runId: string;
+  kind: TaskRunKind;
   sessionId: string;
   status: LiveChatRunStatus;
   startedAt: number;
