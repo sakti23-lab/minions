@@ -1,7 +1,7 @@
 """Shared utilities for the Hermes worker and its submodules.
 
 Kept intentionally small: just the error type and pure helpers that are used
-across `hermes_worker.py`, `hermes_sessions.py`, and `hermes_routines.py`.
+across `hermes_worker.py`, `hermes_sessions.py`, and `hermes_scheduled_tasks.py`.
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""Routine operations for the Hermes worker.
+"""Scheduled task operations for the Hermes worker.
 
 Wraps Hermes's `cron.jobs` / `cron.scheduler` modules with input validation,
 shape normalization, and a background ticker thread.
@@ -18,8 +18,8 @@ from hermes_worker_utils import (
 )
 
 
-_ROUTINES_TICKER_STARTED = False
-_ROUTINES_TICKER_LOCK = threading.Lock()
+_SCHEDULED_TASKS_TICKER_STARTED = False
+_SCHEDULED_TASKS_TICKER_LOCK = threading.Lock()
 
 
 def _ensure_imports() -> None:
@@ -31,7 +31,7 @@ def _ensure_imports() -> None:
     hermes_worker._ensure_imports()
 
 
-def _normalize_routine(job: dict[str, Any] | None) -> dict[str, Any] | None:
+def _normalize_scheduled_task(job: dict[str, Any] | None) -> dict[str, Any] | None:
     if not isinstance(job, dict):
         return None
 
@@ -136,27 +136,27 @@ def _build_update_dict(request: dict[str, Any]) -> dict[str, Any]:
         updates["context_from"] = request.get("contextFrom") or None
 
     if not updates:
-        raise WorkerError("No routine updates were provided.", code="bad_request")
+        raise WorkerError("No scheduled task updates were provided.", code="bad_request")
     return updates
 
 
-def list_routines(include_disabled: bool = False) -> dict[str, Any]:
+def list_scheduled_tasks(include_disabled: bool = False) -> dict[str, Any]:
     _ensure_imports()
     from cron.jobs import list_jobs
 
-    jobs = [_normalize_routine(job) for job in list_jobs(include_disabled=include_disabled)]
-    return {"jobs": [job for job in jobs if job is not None]}
+    jobs = [_normalize_scheduled_task(job) for job in list_jobs(include_disabled=include_disabled)]
+    return {"scheduledTasks": [job for job in jobs if job is not None]}
 
 
-def get_routine(job_id: Any) -> dict[str, Any]:
+def get_scheduled_task(job_id: Any) -> dict[str, Any]:
     _ensure_imports()
     from cron.jobs import get_job
 
-    job = _normalize_routine(get_job(_validate_path_segment(job_id, "Routine ID")))
-    return {"job": job}
+    job = _normalize_scheduled_task(get_job(_validate_path_segment(job_id, "Scheduled task ID")))
+    return {"scheduledTask": job}
 
 
-def create_routine(request: dict[str, Any]) -> dict[str, Any]:
+def create_scheduled_task(request: dict[str, Any]) -> dict[str, Any]:
     _ensure_imports()
     from cron.jobs import create_job
 
@@ -176,45 +176,45 @@ def create_routine(request: dict[str, Any]) -> dict[str, Any]:
         )
     except ValueError as exc:
         raise WorkerError(str(exc), code="bad_request") from exc
-    return {"job": _normalize_routine(job)}
+    return {"scheduledTask": _normalize_scheduled_task(job)}
 
 
-def update_routine(request: dict[str, Any]) -> dict[str, Any]:
+def update_scheduled_task(request: dict[str, Any]) -> dict[str, Any]:
     _ensure_imports()
     from cron.jobs import update_job
 
-    job_id = _validate_path_segment(request.get("jobId"), "Routine ID")
+    job_id = _validate_path_segment(request.get("scheduledTaskId"), "Scheduled task ID")
     try:
-        job = _normalize_routine(update_job(job_id, _build_update_dict(request)))
+        job = _normalize_scheduled_task(update_job(job_id, _build_update_dict(request)))
     except ValueError as exc:
         raise WorkerError(str(exc), code="bad_request") from exc
-    return {"job": job}
+    return {"scheduledTask": job}
 
 
-def pause_routine(job_id: Any, reason: Any = None) -> dict[str, Any]:
+def pause_scheduled_task(job_id: Any, reason: Any = None) -> dict[str, Any]:
     _ensure_imports()
     from cron.jobs import pause_job
 
-    routine_id = _validate_path_segment(job_id, "Routine ID")
-    return {"job": _normalize_routine(pause_job(routine_id, reason=string_or_none(reason)))}
+    scheduled_task_id = _validate_path_segment(job_id, "Scheduled task ID")
+    return {"scheduledTask": _normalize_scheduled_task(pause_job(scheduled_task_id, reason=string_or_none(reason)))}
 
 
-def resume_routine(job_id: Any) -> dict[str, Any]:
+def resume_scheduled_task(job_id: Any) -> dict[str, Any]:
     _ensure_imports()
     from cron.jobs import resume_job
 
-    return {"job": _normalize_routine(resume_job(_validate_path_segment(job_id, "Routine ID")))}
+    return {"scheduledTask": _normalize_scheduled_task(resume_job(_validate_path_segment(job_id, "Scheduled task ID")))}
 
 
-def trigger_routine(job_id: Any) -> dict[str, Any]:
+def trigger_scheduled_task(job_id: Any) -> dict[str, Any]:
     _ensure_imports()
     from cron.jobs import trigger_job
 
-    routine_id = _validate_path_segment(job_id, "Routine ID")
-    job = _normalize_routine(trigger_job(routine_id))
+    scheduled_task_id = _validate_path_segment(job_id, "Scheduled task ID")
+    job = _normalize_scheduled_task(trigger_job(scheduled_task_id))
     if job is not None:
         _kick_immediate_tick()
-    return {"job": job}
+    return {"scheduledTask": job}
 
 
 def _kick_immediate_tick() -> None:
@@ -227,43 +227,43 @@ def _kick_immediate_tick() -> None:
     """
     def _run() -> None:
         try:
-            tick_routines()
+            tick_scheduled_tasks()
         except Exception as exc:  # noqa: BLE001 — log and swallow, this is best-effort
-            print(f"[hermes-worker] immediate routine tick failed: {exc}", file=sys.stderr, flush=True)
+            print(f"[hermes-worker] immediate scheduled task tick failed: {exc}", file=sys.stderr, flush=True)
 
-    threading.Thread(target=_run, name="hermes-routines-trigger", daemon=True).start()
+    threading.Thread(target=_run, name="hermes-scheduled-tasks-trigger", daemon=True).start()
 
 
-def remove_routine(job_id: Any) -> dict[str, Any]:
+def remove_scheduled_task(job_id: Any) -> dict[str, Any]:
     _ensure_imports()
     from cron.jobs import remove_job
 
-    return {"ok": bool(remove_job(_validate_path_segment(job_id, "Routine ID")))}
+    return {"ok": bool(remove_job(_validate_path_segment(job_id, "Scheduled task ID")))}
 
 
-def tick_routines() -> int:
+def tick_scheduled_tasks() -> int:
     _ensure_imports()
     from cron.scheduler import tick
 
     return int(tick(verbose=False) or 0)
 
 
-def _routines_ticker_loop() -> None:
+def _scheduled_tasks_ticker_loop() -> None:
     while True:
         try:
-            executed = tick_routines()
+            executed = tick_scheduled_tasks()
             if executed:
-                print(f"[hermes-worker] routine tick executed {executed} job(s)", file=sys.stderr, flush=True)
+                print(f"[hermes-worker] scheduled task tick executed {executed} job(s)", file=sys.stderr, flush=True)
         except Exception as exc:
-            print(f"[hermes-worker] routine tick failed: {exc}", file=sys.stderr, flush=True)
+            print(f"[hermes-worker] scheduled task tick failed: {exc}", file=sys.stderr, flush=True)
         time.sleep(60)
 
 
-def start_routine_ticker() -> None:
-    global _ROUTINES_TICKER_STARTED
-    with _ROUTINES_TICKER_LOCK:
-        if _ROUTINES_TICKER_STARTED:
+def start_scheduled_task_ticker() -> None:
+    global _SCHEDULED_TASKS_TICKER_STARTED
+    with _SCHEDULED_TASKS_TICKER_LOCK:
+        if _SCHEDULED_TASKS_TICKER_STARTED:
             return
-        thread = threading.Thread(target=_routines_ticker_loop, name="hermes-routines-ticker", daemon=True)
+        thread = threading.Thread(target=_scheduled_tasks_ticker_loop, name="hermes-scheduled-tasks-ticker", daemon=True)
         thread.start()
-        _ROUTINES_TICKER_STARTED = True
+        _SCHEDULED_TASKS_TICKER_STARTED = True

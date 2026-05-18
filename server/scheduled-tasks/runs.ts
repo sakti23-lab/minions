@@ -1,7 +1,7 @@
 import { open, readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { resolveHermesHome } from '../paths.js';
-import type { RoutineRun, RoutineRunContent } from '../../shared/types.js';
+import type { ScheduledTaskRun, ScheduledTaskRunContent } from '../../shared/types.js';
 
 let _outputDir: string | undefined;
 function resolveOutputDir(): string {
@@ -19,7 +19,7 @@ function parseTimestamp(stem: string): string | null {
   return `${y}-${mo}-${d}T${h}:${mi}:${s}`;
 }
 
-function detectStatus(head: string): RoutineRun['status'] {
+function detectStatus(head: string): ScheduledTaskRun['status'] {
   const nlIdx = head.indexOf('\n');
   const firstLine = (nlIdx === -1 ? head : head.slice(0, nlIdx)).trim();
   if (firstLine.startsWith('# Cron Job:') && firstLine.includes('(FAILED)')) return 'error';
@@ -59,9 +59,9 @@ async function readHead(path: string, maxBytes = 8192): Promise<string> {
   }
 }
 
-export async function listRoutineRuns(jobId: string, limit = 20): Promise<RoutineRun[]> {
-  if (!isValidSegment(jobId)) return [];
-  const dir = join(resolveOutputDir(), jobId);
+export async function listScheduledTaskRuns(scheduledTaskId: string, limit = 20): Promise<ScheduledTaskRun[]> {
+  if (!isValidSegment(scheduledTaskId)) return [];
+  const dir = join(resolveOutputDir(), scheduledTaskId);
   const safeLimit = Math.max(1, Math.min(limit, 100));
 
   let names: string[];
@@ -80,14 +80,14 @@ export async function listRoutineRuns(jobId: string, limit = 20): Promise<Routin
       const path = join(dir, name);
       let head = '';
       try { head = await readHead(path); } catch {}
-      return { id: stem, jobId, ranAt: parseTimestamp(stem), path, status: detectStatus(head), preview: buildPreview(head) };
+      return { id: stem, scheduledTaskId, ranAt: parseTimestamp(stem), path, status: detectStatus(head), preview: buildPreview(head) };
     }),
   );
 }
 
-export async function getRoutineRunContent(jobId: string, runId: string): Promise<RoutineRunContent | null> {
-  if (!isValidSegment(jobId) || !isValidSegment(runId)) return null;
-  const path = join(resolveOutputDir(), jobId, `${runId}.md`);
+export async function getScheduledTaskRunContent(scheduledTaskId: string, runId: string): Promise<ScheduledTaskRunContent | null> {
+  if (!isValidSegment(scheduledTaskId) || !isValidSegment(runId)) return null;
+  const path = join(resolveOutputDir(), scheduledTaskId, `${runId}.md`);
   let content: string;
   try {
     content = await readFile(path, 'utf8');

@@ -75,7 +75,7 @@ export function Header() {
 
   const isSettings = location.pathname === '/settings';
   const isNewTask = location.pathname === '/tasks/new';
-  const isRoutines = location.pathname.startsWith('/routines') || location.pathname === '/cron';
+  const isScheduledTasks = location.pathname.startsWith('/scheduled-tasks') || location.pathname === '/cron';
   const isSkills = location.pathname === '/skills';
   const isFiles = location.pathname === '/files';
 
@@ -85,8 +85,8 @@ export function Header() {
 
   if (isSettings) {
     title = 'Settings';
-  } else if (isRoutines) {
-    title = 'Routines';
+  } else if (isScheduledTasks) {
+    title = 'Scheduled Tasks';
   } else if (isSkills) {
     title = 'Skills';
   } else if (isFiles) {

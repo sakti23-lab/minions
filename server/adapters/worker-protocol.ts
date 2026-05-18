@@ -1,8 +1,8 @@
 import type {
   AgentDefaults,
   AgentModelsResponse,
-  Routine,
-  RoutineInput,
+  ScheduledTask,
+  ScheduledTaskInput,
   SessionMetadata,
   TaskMessage,
   ContextUsage,
@@ -14,15 +14,15 @@ export type WorkerRequest =
   | { id: string; type: 'settings.get' }
   | { id: string; type: 'settings.set'; provider?: string | null; model?: string | null; reasoningEffort?: string | null }
   | { id: string; type: 'models.list' }
-  | { id: string; type: 'routines.jobs.list'; includeDisabled?: boolean }
-  | { id: string; type: 'routines.jobs.get'; jobId: string }
-  | { id: string; type: 'routines.jobs.create' } & RoutineInput
-  | { id: string; type: 'routines.jobs.update'; jobId: string } & Partial<RoutineInput>
-  | { id: string; type: 'routines.jobs.pause'; jobId: string; reason?: string }
-  | { id: string; type: 'routines.jobs.resume'; jobId: string }
-  | { id: string; type: 'routines.jobs.run'; jobId: string }
-  | { id: string; type: 'routines.jobs.remove'; jobId: string }
-  | { id: string; type: 'routines.tick' }
+  | { id: string; type: 'scheduledTasks.list'; includeDisabled?: boolean }
+  | { id: string; type: 'scheduledTasks.get'; scheduledTaskId: string }
+  | { id: string; type: 'scheduledTasks.create' } & ScheduledTaskInput
+  | { id: string; type: 'scheduledTasks.update'; scheduledTaskId: string } & Partial<ScheduledTaskInput>
+  | { id: string; type: 'scheduledTasks.pause'; scheduledTaskId: string; reason?: string }
+  | { id: string; type: 'scheduledTasks.resume'; scheduledTaskId: string }
+  | { id: string; type: 'scheduledTasks.run'; scheduledTaskId: string }
+  | { id: string; type: 'scheduledTasks.remove'; scheduledTaskId: string }
+  | { id: string; type: 'scheduledTasks.tick' }
   | { id: string; type: 'session.messages.get'; sessionId: string; taskId?: string }
   | { id: string; type: 'session.get'; sessionId: string }
   | {
@@ -67,8 +67,8 @@ export type WorkerResult =
   | { ok: boolean; agentDir?: string | null; python?: string | null }
   | AgentDefaults
   | AgentModelsResponse
-  | { jobs: Routine[] }
-  | { job: Routine | null }
+  | { scheduledTasks: ScheduledTask[] }
+  | { scheduledTask: ScheduledTask | null }
   | { executed: number }
   | { messages: TaskMessage[] }
   | { session: SessionMetadata | null }

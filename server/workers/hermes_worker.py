@@ -32,17 +32,17 @@ from hermes_sessions import (
     project_session_messages,
     project_session_metadata,
 )
-from hermes_routines import (
-    create_routine,
-    get_routine,
-    list_routines,
-    pause_routine,
-    remove_routine,
-    resume_routine,
-    start_routine_ticker,
-    tick_routines,
-    trigger_routine,
-    update_routine,
+from hermes_scheduled_tasks import (
+    create_scheduled_task,
+    get_scheduled_task,
+    list_scheduled_tasks,
+    pause_scheduled_task,
+    remove_scheduled_task,
+    resume_scheduled_task,
+    start_scheduled_task_ticker,
+    tick_scheduled_tasks,
+    trigger_scheduled_task,
+    update_scheduled_task,
 )
 
 PROTOCOL_OUT = sys.stdout
@@ -1430,24 +1430,24 @@ def _handle_request(request: dict[str, Any]) -> None:
             _result(request_id, _set_defaults(request))
         elif request_type == "models.list":
             _result(request_id, _list_models())
-        elif request_type == "routines.jobs.list":
-            _result(request_id, list_routines(bool(request.get("includeDisabled"))))
-        elif request_type == "routines.jobs.get":
-            _result(request_id, get_routine(request.get("jobId")))
-        elif request_type == "routines.jobs.create":
-            _result(request_id, create_routine(request))
-        elif request_type == "routines.jobs.update":
-            _result(request_id, update_routine(request))
-        elif request_type == "routines.jobs.pause":
-            _result(request_id, pause_routine(request.get("jobId"), request.get("reason")))
-        elif request_type == "routines.jobs.resume":
-            _result(request_id, resume_routine(request.get("jobId")))
-        elif request_type == "routines.jobs.run":
-            _result(request_id, trigger_routine(request.get("jobId")))
-        elif request_type == "routines.jobs.remove":
-            _result(request_id, remove_routine(request.get("jobId")))
-        elif request_type == "routines.tick":
-            _result(request_id, {"executed": tick_routines()})
+        elif request_type == "scheduledTasks.list":
+            _result(request_id, list_scheduled_tasks(bool(request.get("includeDisabled"))))
+        elif request_type == "scheduledTasks.get":
+            _result(request_id, get_scheduled_task(request.get("scheduledTaskId")))
+        elif request_type == "scheduledTasks.create":
+            _result(request_id, create_scheduled_task(request))
+        elif request_type == "scheduledTasks.update":
+            _result(request_id, update_scheduled_task(request))
+        elif request_type == "scheduledTasks.pause":
+            _result(request_id, pause_scheduled_task(request.get("scheduledTaskId"), request.get("reason")))
+        elif request_type == "scheduledTasks.resume":
+            _result(request_id, resume_scheduled_task(request.get("scheduledTaskId")))
+        elif request_type == "scheduledTasks.run":
+            _result(request_id, trigger_scheduled_task(request.get("scheduledTaskId")))
+        elif request_type == "scheduledTasks.remove":
+            _result(request_id, remove_scheduled_task(request.get("scheduledTaskId")))
+        elif request_type == "scheduledTasks.tick":
+            _result(request_id, {"executed": tick_scheduled_tasks()})
         elif request_type == "session.messages.get":
             _result(request_id, project_session_messages(request.get("sessionId"), request.get("taskId")))
         elif request_type == "session.get":
@@ -1522,7 +1522,7 @@ def main() -> int:
         return _self_test()
 
     sys.stdout = sys.stderr
-    start_routine_ticker()
+    start_scheduled_task_ticker()
     try:
         _run_loop()
     except KeyboardInterrupt:

@@ -145,7 +145,7 @@ export interface TaskAgentSettings {
   };
 }
 
-export interface RoutineOrigin {
+export interface ScheduledTaskOrigin {
   platform?: string | null;
   chat_id?: string | null;
   chat_name?: string | null;
@@ -153,7 +153,7 @@ export interface RoutineOrigin {
   [key: string]: unknown;
 }
 
-export interface Routine {
+export interface ScheduledTask {
   id: string;
   name: string;
   prompt: string | null;
@@ -163,43 +163,43 @@ export interface Routine {
   state: string | null;
   nextRunAt: string | null;
   lastRunAt: string | null;
-  lastStatus: RoutineStatus | null;
+  lastStatus: ScheduledTaskStatus | null;
   lastError: string | null;
   lastDeliveryError: string | null;
   model: string | null;
   provider: string | null;
   baseUrl: string | null;
   deliver: string | null;
-  origin: RoutineOrigin | null;
-  repeat: RoutineRepeat | null;
+  origin: ScheduledTaskOrigin | null;
+  repeat: ScheduledTaskRepeat | null;
   contextFrom: string[];
   skills: string[];
   workdir: string | null;
   createdAt: string | null;
 }
 
-export type RoutineStatus = 'ok' | 'error' | 'unknown';
+export type ScheduledTaskStatus = 'ok' | 'error' | 'unknown';
 
-export interface RoutineRepeat {
+export interface ScheduledTaskRepeat {
   times: number | null;
   completed: number;
 }
 
-export interface RoutineRun {
+export interface ScheduledTaskRun {
   id: string;
-  jobId: string;
+  scheduledTaskId: string;
   ranAt: string | null;
   path: string;
-  status: RoutineStatus;
+  status: ScheduledTaskStatus;
   preview: string;
 }
 
-export interface RoutineRunContent {
+export interface ScheduledTaskRunContent {
   body: string;
-  status: RoutineStatus;
+  status: ScheduledTaskStatus;
 }
 
-export interface RoutineInput {
+export interface ScheduledTaskInput {
   name?: string;
   prompt: string;
   schedule: string;

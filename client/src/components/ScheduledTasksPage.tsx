@@ -21,18 +21,18 @@ import {
   XCircle,
   type LucideIcon,
 } from 'lucide-react';
-import type { Routine, RoutineInput, RoutineRun, RoutineRunContent, RoutineStatus } from '@shared/types';
+import type { ScheduledTask, ScheduledTaskInput, ScheduledTaskRun, ScheduledTaskRunContent, ScheduledTaskStatus } from '@shared/types';
 import {
-  createRoutine,
-  deleteRoutine,
-  fetchRoutine,
-  fetchRoutineRunContent,
-  fetchRoutineRuns,
-  fetchRoutines,
-  pauseRoutine,
-  resumeRoutine,
-  runRoutine,
-  updateRoutine,
+  createScheduledTask,
+  deleteScheduledTask,
+  fetchScheduledTask,
+  fetchScheduledTaskRunContent,
+  fetchScheduledTaskRuns,
+  fetchScheduledTasks,
+  pauseScheduledTask,
+  resumeScheduledTask,
+  runScheduledTask,
+  updateScheduledTask,
 } from '../lib/api';
 import { formatDate, toErrorMessage } from '../lib/format';
 import {
@@ -57,14 +57,14 @@ const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const RUN_POLL_INTERVAL_MS = 3000;
 const RUN_POLL_TIMEOUT_MS = 60_000;
 const RUNS_PAGE_SIZE = 50;
-const ROUTINE_EDITOR_FORM_ID = 'routine-editor-form';
+const SCHEDULED_TASK_EDITOR_FORM_ID = 'scheduled-task-editor-form';
 
 const ROUTES = {
-  list: '/routines',
-  new: '/routines/new',
-  edit: (id: string) => `/routines/${id}/edit`,
-  runs: (id: string) => `/routines/${id}/runs`,
-  run: (id: string, runId: string) => `/routines/${id}/runs/${runId}`,
+  list: '/scheduled-tasks',
+  new: '/scheduled-tasks/new',
+  edit: (id: string) => `/scheduled-tasks/${id}/edit`,
+  runs: (id: string) => `/scheduled-tasks/${id}/runs`,
+  run: (id: string, runId: string) => `/scheduled-tasks/${id}/runs/${runId}`,
 };
 
 type RunFilterMode = 'all' | 'errors';
@@ -72,16 +72,16 @@ type RepeatMode = 'forever' | 'once' | 'times';
 
 type PendingAction = {
   action: 'pause' | 'resume' | 'run' | 'delete';
-  jobId: string;
+  scheduledTaskId: string;
 };
 
 type RunPollState = {
-  jobId: string;
+  scheduledTaskId: string;
   previousLatestRunId: string | null;
   startedAt: number;
 };
 
-type RoutineTemplate = {
+type ScheduledTaskTemplate = {
   key: string;
   name: string;
   description: string;
@@ -90,7 +90,7 @@ type RoutineTemplate = {
   schedule: string;
 };
 
-type RoutineFormState = {
+type ScheduledTaskFormState = {
   name: string;
   prompt: string;
   preset: SchedulePreset;
@@ -106,7 +106,7 @@ type RoutineFormState = {
   repeatCount: string;
 };
 
-export const ROUTINE_TEMPLATES: RoutineTemplate[] = [
+export const SCHEDULED_TASK_TEMPLATES: ScheduledTaskTemplate[] = [
   {
     key: 'daily-news-digest',
     name: 'Daily news digest',
@@ -140,13 +140,13 @@ Triage the inbox and flag urgent items.
   },
 ];
 
-function routineStatusClass(status: RoutineStatus | null): string {
+function scheduledTaskStatusClass(status: ScheduledTaskStatus | null): string {
   if (status === 'ok') return 'text-zinc-700 dark:text-zinc-300';
   if (status === 'error') return 'text-rose-600 dark:text-rose-400';
   return 'text-zinc-500 dark:text-zinc-400';
 }
 
-function statusBadgeClass(status: RoutineStatus | null): string {
+function statusBadgeClass(status: ScheduledTaskStatus | null): string {
   if (status === 'ok') {
     return 'border-zinc-300 bg-zinc-100 text-zinc-700 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200';
   }
@@ -156,7 +156,7 @@ function statusBadgeClass(status: RoutineStatus | null): string {
   return 'border-zinc-200 bg-white text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-400';
 }
 
-function RoutineStatusIcon({ status }: { status: RoutineStatus | null }) {
+function ScheduledTaskStatusIcon({ status }: { status: ScheduledTaskStatus | null }) {
   if (status === 'ok') return <CheckCircle2 size={14} />;
   if (status === 'error') return <XCircle size={14} />;
   return <Clock3 size={14} />;
@@ -186,7 +186,7 @@ function Pill({
   );
 }
 
-function RoutineStatePill({ enabled }: { enabled: boolean }) {
+function ScheduledTaskStatePill({ enabled }: { enabled: boolean }) {
   return (
     <Pill
       tone={enabled ? 'active' : 'neutral'}
@@ -198,35 +198,35 @@ function RoutineStatePill({ enabled }: { enabled: boolean }) {
   );
 }
 
-function RunStatusPill({ status }: { status: RoutineStatus | null }) {
+function RunStatusPill({ status }: { status: ScheduledTaskStatus | null }) {
   return (
     <span className={`inline-flex min-h-[24px] items-center gap-1 rounded-full border px-2 text-xs font-semibold ${statusBadgeClass(status)}`}>
-      <RoutineStatusIcon status={status} />
+      <ScheduledTaskStatusIcon status={status} />
       {status ?? 'unknown'}
     </span>
   );
 }
 
-function RoutineMetaPills({ routine }: { routine: Routine }) {
-  const delivery = deliveryLabel(routine);
+function ScheduledTaskMetaPills({ scheduledTask }: { scheduledTask: ScheduledTask }) {
+  const delivery = deliveryLabel(scheduledTask);
   return (
     <>
-      <RoutineStatePill enabled={routine.enabled} />
-      <Pill icon={<Clock3 size={13} />}>{scheduleSummary(routine)}</Pill>
-      {shouldShowDeliveryPill(routine) && <Pill icon={<Send size={13} />}>{delivery}</Pill>}
+      <ScheduledTaskStatePill enabled={scheduledTask.enabled} />
+      <Pill icon={<Clock3 size={13} />}>{scheduleSummary(scheduledTask)}</Pill>
+      {shouldShowDeliveryPill(scheduledTask) && <Pill icon={<Send size={13} />}>{delivery}</Pill>}
     </>
   );
 }
 
-function deliveryLabel(routine: Routine): string {
-  const deliver = routine.deliver?.trim();
+function deliveryLabel(scheduledTask: ScheduledTask): string {
+  const deliver = scheduledTask.deliver?.trim();
   if (!deliver || deliver === 'local') return 'local';
   if (deliver === 'origin') return 'Original channel';
   return deliver;
 }
 
-function shouldShowDeliveryPill(routine: Routine): boolean {
-  const deliver = routine.deliver?.trim();
+function shouldShowDeliveryPill(scheduledTask: ScheduledTask): boolean {
+  const deliver = scheduledTask.deliver?.trim();
   return Boolean(deliver && deliver !== 'origin');
 }
 
@@ -238,7 +238,7 @@ function promptDescription(prompt: string | null): string {
   return line ?? 'Self-contained runbook';
 }
 
-function findNewRoutineRun(runs: RoutineRun[], poll: RunPollState): RoutineRun | null {
+function findNewScheduledTaskRun(runs: ScheduledTaskRun[], poll: RunPollState): ScheduledTaskRun | null {
   if (!runs.length) return null;
 
   if (poll.previousLatestRunId) {
@@ -252,25 +252,25 @@ function findNewRoutineRun(runs: RoutineRun[], poll: RunPollState): RoutineRun |
   }) ?? null;
 }
 
-function initialFormState(routine?: Routine, template?: RoutineTemplate): RoutineFormState {
-  const rawSchedule = routine ? scheduleRaw(routine) : template?.schedule ?? '0 9 * * 1-5';
+function initialFormState(scheduledTask?: ScheduledTask, template?: ScheduledTaskTemplate): ScheduledTaskFormState {
+  const rawSchedule = scheduledTask ? scheduleRaw(scheduledTask) : template?.schedule ?? '0 9 * * 1-5';
   const schedule = detectPreset(rawSchedule);
-  const deliver = routine?.deliver?.trim();
-  const repeatTimes = routine?.repeat?.times ?? null;
+  const deliver = scheduledTask?.deliver?.trim();
+  const repeatTimes = scheduledTask?.repeat?.times ?? null;
 
   return {
-    name: routine?.name ?? template?.name ?? '',
-    prompt: routine?.prompt ?? template?.prompt ?? '',
+    name: scheduledTask?.name ?? template?.name ?? '',
+    prompt: scheduledTask?.prompt ?? template?.prompt ?? '',
     ...schedule,
     deliver: deliver || 'local',
-    model: routine?.model ?? '',
-    workdir: routine?.workdir ?? '',
+    model: scheduledTask?.model ?? '',
+    workdir: scheduledTask?.workdir ?? '',
     repeatMode: repeatTimes === 1 ? 'once' : repeatTimes ? 'times' : 'forever',
     repeatCount: repeatTimes && repeatTimes > 1 ? String(repeatTimes) : '3',
   };
 }
 
-function routineInputFromForm(form: RoutineFormState, previous?: Routine): RoutineInput | Partial<RoutineInput> {
+function scheduledTaskInputFromForm(form: ScheduledTaskFormState, previous?: ScheduledTask): ScheduledTaskInput | Partial<ScheduledTaskInput> {
   const schedule = compileSchedule(form);
   const repeat = form.repeatMode === 'once'
     ? 1
@@ -278,7 +278,7 @@ function routineInputFromForm(form: RoutineFormState, previous?: Routine): Routi
       ? Math.max(1, Number.parseInt(form.repeatCount, 10) || 1)
       : null;
 
-  const input: RoutineInput = {
+  const input: ScheduledTaskInput = {
     name: form.name.trim(),
     prompt: form.prompt.trim(),
     schedule,
@@ -294,7 +294,7 @@ function routineInputFromForm(form: RoutineFormState, previous?: Routine): Routi
 
   if (!previous) return input;
 
-  const updates: Partial<RoutineInput> = {};
+  const updates: Partial<ScheduledTaskInput> = {};
   const previousSchedule = scheduleRaw(previous);
   const previousRepeat = previous.repeat?.times ?? null;
   if (input.name !== previous.name) updates.name = input.name;
@@ -407,31 +407,31 @@ function NotFoundPanel({ onBack }: { onBack: () => void }) {
   return (
     <div className="px-8 py-14 text-center">
       <Repeat size={34} strokeWidth={1.5} className="mx-auto mb-4 text-zinc-300 dark:text-zinc-700" />
-      <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Routine not found</h2>
-      <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">It may have been removed from Hermes cron storage.</p>
+      <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Scheduled task not found</h2>
+      <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">It may have been removed from Hermes scheduled task storage.</p>
       <button
         type="button"
         onClick={onBack}
         className="mt-5 inline-flex h-8 items-center gap-1.5 rounded-md border border-zinc-200 bg-white px-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:bg-zinc-800"
       >
         <ChevronLeft size={15} />
-        <span>Back to routines</span>
+        <span>Back to scheduled tasks</span>
       </button>
     </div>
   );
 }
 
-function EmptyState({ onTemplate, onCreate }: { onTemplate: (template: RoutineTemplate) => void; onCreate: () => void }) {
+function EmptyState({ onTemplate, onCreate }: { onTemplate: (template: ScheduledTaskTemplate) => void; onCreate: () => void }) {
   return (
     <div className="px-8 py-14 text-center">
       <Repeat size={40} strokeWidth={1.5} className="mx-auto mb-4 text-zinc-300 dark:text-zinc-700" />
-      <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">No routines yet</h2>
+      <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">No scheduled tasks yet</h2>
       <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
         Schedule recurring tasks for Hermes. Pick a template or start from scratch.
       </p>
 
       <div className="mx-auto mt-6 grid max-w-2xl grid-cols-1 gap-3 text-left md:grid-cols-2">
-        {ROUTINE_TEMPLATES.map((template) => {
+        {SCHEDULED_TASK_TEMPLATES.map((template) => {
           const Icon = template.icon;
           return (
             <button
@@ -466,30 +466,30 @@ function EmptyState({ onTemplate, onCreate }: { onTemplate: (template: RoutineTe
   );
 }
 
-function LoadingRoutinesView() {
-  const headerConfig = useMemo<PageHeaderConfig>(() => ({ crumbs: [{ label: 'Routines' }] }), []);
+function LoadingScheduledTasksView() {
+  const headerConfig = useMemo<PageHeaderConfig>(() => ({ crumbs: [{ label: 'Scheduled Tasks' }] }), []);
   usePageHeader(headerConfig);
-  return <LoadingPanel label="Loading routines" />;
+  return <LoadingPanel label="Loading scheduled tasks" />;
 }
 
-function RoutineNotFoundView({ onBack }: { onBack: () => void }) {
-  const headerConfig = useMemo<PageHeaderConfig>(() => ({ crumbs: [{ label: 'Routines', to: ROUTES.list }, { label: 'Not found' }] }), []);
+function ScheduledTaskNotFoundView({ onBack }: { onBack: () => void }) {
+  const headerConfig = useMemo<PageHeaderConfig>(() => ({ crumbs: [{ label: 'Scheduled Tasks', to: ROUTES.list }, { label: 'Not found' }] }), []);
   usePageHeader(headerConfig);
   return <NotFoundPanel onBack={onBack} />;
 }
 
-function EmptyRoutinesView({
+function EmptyScheduledTasksView({
   onTemplate,
   onCreate,
 }: {
-  onTemplate: (template: RoutineTemplate) => void;
+  onTemplate: (template: ScheduledTaskTemplate) => void;
   onCreate: () => void;
 }) {
   const headerActions = useMemo(() => (
-    <ActionButton icon={<Plus size={15} />} onClick={onCreate}>New routine</ActionButton>
+    <ActionButton icon={<Plus size={15} />} onClick={onCreate}>New scheduled task</ActionButton>
   ), [onCreate]);
   const headerConfig = useMemo<PageHeaderConfig>(() => ({
-    crumbs: [{ label: 'Routines' }],
+    crumbs: [{ label: 'Scheduled Tasks' }],
     actions: headerActions,
   }), [headerActions]);
 
@@ -497,8 +497,8 @@ function EmptyRoutinesView({
   return <EmptyState onTemplate={onTemplate} onCreate={onCreate} />;
 }
 
-function RoutinesList({
-  routines,
+function ScheduledTasksList({
+  scheduledTasks,
   pendingAction,
   onOpenRuns,
   onCreate,
@@ -507,20 +507,20 @@ function RoutinesList({
   onToggle,
   onDelete,
 }: {
-  routines: Routine[];
+  scheduledTasks: ScheduledTask[];
   pendingAction: PendingAction | null;
-  onOpenRuns: (routine: Routine) => void;
+  onOpenRuns: (scheduledTask: ScheduledTask) => void;
   onCreate: () => void;
-  onEdit: (routine: Routine) => void;
-  onRun: (routine: Routine) => void;
-  onToggle: (routine: Routine) => void;
-  onDelete: (routine: Routine) => void;
+  onEdit: (scheduledTask: ScheduledTask) => void;
+  onRun: (scheduledTask: ScheduledTask) => void;
+  onToggle: (scheduledTask: ScheduledTask) => void;
+  onDelete: (scheduledTask: ScheduledTask) => void;
 }) {
   const headerActions = useMemo(() => (
-    <ActionButton icon={<Plus size={15} />} onClick={onCreate}>New routine</ActionButton>
+    <ActionButton icon={<Plus size={15} />} onClick={onCreate}>New scheduled task</ActionButton>
   ), [onCreate]);
   const headerConfig = useMemo<PageHeaderConfig>(() => ({
-    crumbs: [{ label: 'Routines' }],
+    crumbs: [{ label: 'Scheduled Tasks' }],
     actions: headerActions,
   }), [headerActions]);
 
@@ -529,28 +529,28 @@ function RoutinesList({
   return (
     <>
       <div className="flex items-center gap-3 border-b border-zinc-200 px-4 py-3 sm:px-5 dark:border-zinc-800">
-        <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">Routines</h2>
-        <span className="text-xs text-zinc-400 dark:text-zinc-500">{routines.length} total</span>
+        <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">Scheduled Tasks</h2>
+        <span className="text-xs text-zinc-400 dark:text-zinc-500">{scheduledTasks.length} total</span>
       </div>
 
       <div className="divide-y divide-zinc-100 dark:divide-zinc-800 lg:hidden">
-        {routines.map((routine) => {
-          const pending = pendingAction?.jobId === routine.id;
-          const description = promptDescription(routine.prompt);
-          const schedule = scheduleSummary(routine);
-          const lastRun = routine.lastRunAt ? relativeTime(routine.lastRunAt) : '-';
-          const nextRun = routine.enabled ? relativeTime(routine.nextRunAt) : '-';
+        {scheduledTasks.map((scheduledTask) => {
+          const pending = pendingAction?.scheduledTaskId === scheduledTask.id;
+          const description = promptDescription(scheduledTask.prompt);
+          const schedule = scheduleSummary(scheduledTask);
+          const lastRun = scheduledTask.lastRunAt ? relativeTime(scheduledTask.lastRunAt) : '-';
+          const nextRun = scheduledTask.enabled ? relativeTime(scheduledTask.nextRunAt) : '-';
 
           return (
             <div
-              key={routine.id}
+              key={scheduledTask.id}
               className={`px-4 py-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-800/60 ${
-                routine.enabled ? '' : 'opacity-75'
+                scheduledTask.enabled ? '' : 'opacity-75'
               }`}
             >
               <button
                 type="button"
-                onClick={() => onOpenRuns(routine)}
+                onClick={() => onOpenRuns(scheduledTask)}
                 className="-mx-1 block w-[calc(100%+0.5rem)] rounded-md px-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-zinc-300 dark:focus-visible:ring-zinc-700"
               >
                 <div className="flex min-w-0 items-start gap-3">
@@ -560,14 +560,14 @@ function RoutinesList({
                   <div className="min-w-0 flex-1">
                     <div className="flex min-w-0 items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100" title={routine.name}>
-                          {routine.name}
+                        <p className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100" title={scheduledTask.name}>
+                          {scheduledTask.name}
                         </p>
                         <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-zinc-500 dark:text-zinc-400" title={description}>
                           {description}
                         </p>
                       </div>
-                      <RoutineStatePill enabled={routine.enabled} />
+                      <ScheduledTaskStatePill enabled={scheduledTask.enabled} />
                     </div>
 
                     <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
@@ -575,7 +575,7 @@ function RoutinesList({
                         { label: 'Schedule', value: schedule, title: schedule, cls: 'text-zinc-700 dark:text-zinc-300' },
                         { label: 'Next', value: nextRun },
                         { label: 'Last', value: lastRun },
-                        { label: 'Status', value: routine.lastStatus ?? 'unknown', cls: routineStatusClass(routine.lastStatus) },
+                        { label: 'Status', value: scheduledTask.lastStatus ?? 'unknown', cls: scheduledTaskStatusClass(scheduledTask.lastStatus) },
                       ] as { label: string; value: string; title?: string; cls?: string }[]).map((stat) => (
                         <div key={stat.label} className="min-w-0">
                           <p className="font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">{stat.label}</p>
@@ -588,12 +588,12 @@ function RoutinesList({
               </button>
 
               <div className="mt-3 flex items-center justify-end gap-1.5 pl-12">
-                <IconButton title="Edit routine" icon={<Pencil size={15} />} disabled={Boolean(pendingAction)} onClick={() => onEdit(routine)} />
-                <IconButton title="Run now" icon={pending && pendingAction?.action === 'run' ? <Loader2 size={15} className="animate-spin" /> : <Play size={15} />} disabled={Boolean(pendingAction)} onClick={() => onRun(routine)} />
-                <IconButton title={routine.enabled ? 'Pause' : 'Resume'} icon={pending && (pendingAction?.action === 'pause' || pendingAction?.action === 'resume') ? <Loader2 size={15} className="animate-spin" /> : routine.enabled ? <Pause size={15} /> : <Play size={15} />} disabled={Boolean(pendingAction)} onClick={() => onToggle(routine)} />
-                <IconButton title="Delete" icon={<Trash2 size={15} />} danger disabled={Boolean(pendingAction)} onClick={() => onDelete(routine)} />
+                <IconButton title="Edit scheduled task" icon={<Pencil size={15} />} disabled={Boolean(pendingAction)} onClick={() => onEdit(scheduledTask)} />
+                <IconButton title="Run now" icon={pending && pendingAction?.action === 'run' ? <Loader2 size={15} className="animate-spin" /> : <Play size={15} />} disabled={Boolean(pendingAction)} onClick={() => onRun(scheduledTask)} />
+                <IconButton title={scheduledTask.enabled ? 'Pause' : 'Resume'} icon={pending && (pendingAction?.action === 'pause' || pendingAction?.action === 'resume') ? <Loader2 size={15} className="animate-spin" /> : scheduledTask.enabled ? <Pause size={15} /> : <Play size={15} />} disabled={Boolean(pendingAction)} onClick={() => onToggle(scheduledTask)} />
+                <IconButton title="Delete" icon={<Trash2 size={15} />} danger disabled={Boolean(pendingAction)} onClick={() => onDelete(scheduledTask)} />
               </div>
-              <span className="sr-only">Output destination: {deliveryLabel(routine)}</span>
+              <span className="sr-only">Output destination: {deliveryLabel(scheduledTask)}</span>
             </div>
           );
         })}
@@ -620,17 +620,17 @@ function RoutinesList({
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-            {routines.map((routine) => {
-              const pending = pendingAction?.jobId === routine.id;
-              const description = promptDescription(routine.prompt);
-              const schedule = scheduleSummary(routine);
-              const lastRun = routine.lastRunAt ? relativeTime(routine.lastRunAt) : '-';
-              const nextRun = routine.enabled ? relativeTime(routine.nextRunAt) : '-';
+            {scheduledTasks.map((scheduledTask) => {
+              const pending = pendingAction?.scheduledTaskId === scheduledTask.id;
+              const description = promptDescription(scheduledTask.prompt);
+              const schedule = scheduleSummary(scheduledTask);
+              const lastRun = scheduledTask.lastRunAt ? relativeTime(scheduledTask.lastRunAt) : '-';
+              const nextRun = scheduledTask.enabled ? relativeTime(scheduledTask.nextRunAt) : '-';
               return (
                 <tr
-                  key={routine.id}
-                  onClick={() => onOpenRuns(routine)}
-                  className={`cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/60 ${routine.enabled ? '' : 'opacity-75'}`}
+                  key={scheduledTask.id}
+                  onClick={() => onOpenRuns(scheduledTask)}
+                  className={`cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/60 ${scheduledTask.enabled ? '' : 'opacity-75'}`}
                 >
                   <td className="px-5 py-3 align-middle">
                     <div className="flex min-w-0 items-center gap-2.5">
@@ -638,7 +638,7 @@ function RoutinesList({
                         <FileText size={15} />
                       </span>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate font-medium text-zinc-900 dark:text-zinc-100" title={routine.name}>{routine.name}</p>
+                        <p className="truncate font-medium text-zinc-900 dark:text-zinc-100" title={scheduledTask.name}>{scheduledTask.name}</p>
                         <p className="truncate text-xs text-zinc-500 dark:text-zinc-400" title={description}>{description}</p>
                       </div>
                     </div>
@@ -649,9 +649,9 @@ function RoutinesList({
                   <td className="px-2 py-3 align-middle text-zinc-500 dark:text-zinc-400">
                     <div className="truncate">
                       {lastRun}
-                      {routine.lastStatus && (
-                        <span className={`ml-1.5 inline-flex items-center gap-1 ${routineStatusClass(routine.lastStatus)}`}>
-                          · {routine.lastStatus}
+                      {scheduledTask.lastStatus && (
+                        <span className={`ml-1.5 inline-flex items-center gap-1 ${scheduledTaskStatusClass(scheduledTask.lastStatus)}`}>
+                          · {scheduledTask.lastStatus}
                         </span>
                       )}
                     </div>
@@ -660,16 +660,16 @@ function RoutinesList({
                     <div className="truncate">{nextRun}</div>
                   </td>
                   <td className="px-2 py-3 align-middle">
-                    <RoutineStatePill enabled={routine.enabled} />
+                    <ScheduledTaskStatePill enabled={scheduledTask.enabled} />
                   </td>
                   <td className="px-3 py-3 align-middle">
                     <div className="flex items-center justify-end gap-1">
-                      <IconButton title="Edit routine" icon={<Pencil size={15} />} disabled={Boolean(pendingAction)} onClick={() => onEdit(routine)} />
-                      <IconButton title="Run now" icon={pending && pendingAction?.action === 'run' ? <Loader2 size={15} className="animate-spin" /> : <Play size={15} />} disabled={Boolean(pendingAction)} onClick={() => onRun(routine)} />
-                      <IconButton title={routine.enabled ? 'Pause' : 'Resume'} icon={pending && (pendingAction?.action === 'pause' || pendingAction?.action === 'resume') ? <Loader2 size={15} className="animate-spin" /> : routine.enabled ? <Pause size={15} /> : <Play size={15} />} disabled={Boolean(pendingAction)} onClick={() => onToggle(routine)} />
-                      <IconButton title="Delete" icon={<Trash2 size={15} />} danger disabled={Boolean(pendingAction)} onClick={() => onDelete(routine)} />
+                      <IconButton title="Edit scheduled task" icon={<Pencil size={15} />} disabled={Boolean(pendingAction)} onClick={() => onEdit(scheduledTask)} />
+                      <IconButton title="Run now" icon={pending && pendingAction?.action === 'run' ? <Loader2 size={15} className="animate-spin" /> : <Play size={15} />} disabled={Boolean(pendingAction)} onClick={() => onRun(scheduledTask)} />
+                      <IconButton title={scheduledTask.enabled ? 'Pause' : 'Resume'} icon={pending && (pendingAction?.action === 'pause' || pendingAction?.action === 'resume') ? <Loader2 size={15} className="animate-spin" /> : scheduledTask.enabled ? <Pause size={15} /> : <Play size={15} />} disabled={Boolean(pendingAction)} onClick={() => onToggle(scheduledTask)} />
+                      <IconButton title="Delete" icon={<Trash2 size={15} />} danger disabled={Boolean(pendingAction)} onClick={() => onDelete(scheduledTask)} />
                     </div>
-                    <span className="sr-only">Output destination: {deliveryLabel(routine)}</span>
+                    <span className="sr-only">Output destination: {deliveryLabel(scheduledTask)}</span>
                   </td>
                 </tr>
               );
@@ -678,9 +678,9 @@ function RoutinesList({
         </table>
       </div>
 
-      {routines.length === 0 && (
+      {scheduledTasks.length === 0 && (
         <div className="px-5 py-12 text-center text-sm text-zinc-400 dark:text-zinc-500">
-          No routines match this view.
+          No scheduled tasks match this view.
         </div>
       )}
     </>
@@ -741,9 +741,9 @@ function SelectInput({
   );
 }
 
-function RoutineEditorPage({
+function ScheduledTaskEditorPage({
   mode,
-  routine,
+  scheduledTask,
   template,
   saving,
   justSaved = false,
@@ -752,15 +752,15 @@ function RoutineEditorPage({
   onSubmit,
 }: {
   mode: 'create' | 'edit';
-  routine?: Routine;
-  template?: RoutineTemplate;
+  scheduledTask?: ScheduledTask;
+  template?: ScheduledTaskTemplate;
   saving: boolean;
   justSaved?: boolean;
   error: string | null;
   onCancel: () => void;
-  onSubmit: (form: RoutineFormState) => void;
+  onSubmit: (form: ScheduledTaskFormState) => void;
 }) {
-  const [form, setForm] = useState<RoutineFormState>(() => initialFormState(routine, template));
+  const [form, setForm] = useState<ScheduledTaskFormState>(() => initialFormState(scheduledTask, template));
   const { defaults: agentDefaults, modelGroups } = useAgentConfig();
   const schedule = useMemo(
     () => compileSchedule(form),
@@ -773,7 +773,7 @@ function RoutineEditorPage({
   const isEdit = mode === 'edit';
   const canSubmit = form.name.trim().length > 0 && form.prompt.trim().length > 0 && schedule.trim().length > 0 && !preview.invalid && !saving;
 
-  function patch(updates: Partial<RoutineFormState>) {
+  function patch(updates: Partial<ScheduledTaskFormState>) {
     setForm((current) => ({ ...current, ...updates }));
   }
 
@@ -799,7 +799,7 @@ function RoutineEditorPage({
         <ActionButton variant="secondary" onClick={onCancel}>Cancel</ActionButton>
         <ActionButton
           type="submit"
-          form={ROUTINE_EDITOR_FORM_ID}
+          form={SCHEDULED_TASK_EDITOR_FORM_ID}
           disabled={!canSubmit}
           icon={saving ? <Loader2 size={14} className="animate-spin" /> : undefined}
         >
@@ -810,17 +810,17 @@ function RoutineEditorPage({
   }, [canSubmit, isEdit, justSaved, onCancel, saving]);
   const headerConfig = useMemo<PageHeaderConfig>(() => ({
     crumbs: [
-      { label: 'Routines', to: ROUTES.list },
-      ...(isEdit && routine ? [{ label: routine.name, to: ROUTES.runs(routine.id) }] : []),
-      { label: isEdit ? 'Edit' : 'New routine' },
+      { label: 'Scheduled Tasks', to: ROUTES.list },
+      ...(isEdit && scheduledTask ? [{ label: scheduledTask.name, to: ROUTES.runs(scheduledTask.id) }] : []),
+      { label: isEdit ? 'Edit' : 'New scheduled task' },
     ],
     actions: headerActions,
-  }), [headerActions, isEdit, routine]);
+  }), [headerActions, isEdit, scheduledTask]);
 
   usePageHeader(headerConfig);
 
   return (
-    <form id={ROUTINE_EDITOR_FORM_ID} onSubmit={submit}>
+    <form id={SCHEDULED_TASK_EDITOR_FORM_ID} onSubmit={submit}>
       {error && (
         <div className="flex items-center gap-2 border-b border-rose-200 bg-rose-50 px-5 py-2 text-sm text-rose-700 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300">
           <AlertCircle size={15} />
@@ -942,7 +942,7 @@ function RoutineEditorPage({
                 value={form.model}
                 defaultModel={agentDefaults?.model ?? null}
                 modelGroups={modelGroups}
-                title="Routine model"
+                title="Scheduled task model"
                 onChange={(model) => patch({ model })}
               />
             </div>
@@ -976,8 +976,8 @@ function RoutineEditorPage({
   );
 }
 
-function RoutineRunsView({
-  routine,
+function ScheduledTaskRunsView({
+  scheduledTask,
   runs,
   activeRunId,
   runContent,
@@ -991,10 +991,10 @@ function RoutineRunsView({
   onRun,
   onSelectRun,
 }: {
-  routine: Routine;
-  runs: RoutineRun[];
+  scheduledTask: ScheduledTask;
+  runs: ScheduledTaskRun[];
   activeRunId: string | null;
-  runContent: RoutineRunContent | null;
+  runContent: ScheduledTaskRunContent | null;
   runFilter: RunFilterMode;
   loadingRuns: boolean;
   loadingContent: boolean;
@@ -1007,33 +1007,33 @@ function RoutineRunsView({
 }) {
   const visibleRuns = runFilter === 'errors' ? runs.filter((run) => run.status === 'error') : runs;
   const runCountLabel = runs.length >= RUNS_PAGE_SIZE ? `latest ${RUNS_PAGE_SIZE}` : `${runs.length} total`;
-  const isRunning = pendingAction?.action === 'run' && pendingAction.jobId === routine.id;
+  const isRunning = pendingAction?.action === 'run' && pendingAction.scheduledTaskId === scheduledTask.id;
   const activeRun = useMemo(() => runs.find((run) => run.id === activeRunId) ?? null, [activeRunId, runs]);
   const activeRunStatus = activeRun?.status ?? runContent?.status ?? null;
   const runBody = runContent?.body.trim() ?? '';
   const headerActions = useMemo(() => (
     <>
       <div className="hidden items-center gap-2 lg:flex">
-        <RoutineMetaPills routine={routine} />
+        <ScheduledTaskMetaPills scheduledTask={scheduledTask} />
       </div>
       <ActionButton variant="secondary" icon={<Pencil size={14} />} onClick={onEdit}>Edit</ActionButton>
       <ActionButton icon={isRunning ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />} disabled={Boolean(pendingAction)} onClick={onRun}>Run now</ActionButton>
     </>
-  ), [isRunning, onEdit, onRun, pendingAction, routine]);
+  ), [isRunning, onEdit, onRun, pendingAction, scheduledTask]);
   const headerConfig = useMemo<PageHeaderConfig>(() => ({
     crumbs: [
-      { label: 'Routines', to: ROUTES.list },
-      { label: routine.name },
+      { label: 'Scheduled Tasks', to: ROUTES.list },
+      { label: scheduledTask.name },
     ],
     actions: headerActions,
-  }), [headerActions, routine.name]);
+  }), [headerActions, scheduledTask.name]);
 
   usePageHeader(headerConfig);
 
   return (
     <>
       <div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 bg-zinc-50 px-5 py-2 lg:hidden dark:border-zinc-800 dark:bg-zinc-900/60">
-        <RoutineMetaPills routine={routine} />
+        <ScheduledTaskMetaPills scheduledTask={scheduledTask} />
       </div>
 
       <div className="grid min-h-[640px] grid-cols-1 lg:min-h-0 lg:flex-1 lg:grid-cols-[340px_minmax(0,1fr)] lg:overflow-hidden">
@@ -1142,16 +1142,16 @@ function RoutineRunsView({
   );
 }
 
-export function RoutinesPage() {
+export function ScheduledTasksPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { routineId, runId } = useParams<{ routineId?: string; runId?: string }>();
-  const selectedRoutineId = routineId ?? null;
+  const { scheduledTaskId, runId } = useParams<{ scheduledTaskId?: string; runId?: string }>();
+  const selectedScheduledTaskId = scheduledTaskId ?? null;
 
-  const [routines, setRoutines] = useState<Routine[]>([]);
-  const [runs, setRuns] = useState<RoutineRun[]>([]);
-  const [runContent, setRunContent] = useState<RoutineRunContent | null>(null);
-  const [loadingRoutines, setLoadingRoutines] = useState(true);
+  const [scheduledTasks, setScheduledTasks] = useState<ScheduledTask[]>([]);
+  const [runs, setRuns] = useState<ScheduledTaskRun[]>([]);
+  const [runContent, setRunContent] = useState<ScheduledTaskRunContent | null>(null);
+  const [loadingScheduledTasks, setLoadingScheduledTasks] = useState(true);
   const [loadingRuns, setLoadingRuns] = useState(false);
   const [loadingContent, setLoadingContent] = useState(false);
   const [runFilter, setRunFilter] = useState<RunFilterMode>('all');
@@ -1166,90 +1166,90 @@ export function RoutinesPage() {
     return () => clearTimeout(timer);
   }, [justSaved]);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<Routine | null>(null);
-  const [templateDraft, setTemplateDraft] = useState<RoutineTemplate | undefined>(undefined);
+  const [deleteTarget, setDeleteTarget] = useState<ScheduledTask | null>(null);
+  const [templateDraft, setTemplateDraft] = useState<ScheduledTaskTemplate | undefined>(undefined);
   const [runPoll, setRunPoll] = useState<RunPollState | null>(null);
 
-  const runsRef = useRef<RoutineRun[]>([]);
+  const runsRef = useRef<ScheduledTaskRun[]>([]);
   useEffect(() => {
     runsRef.current = runs;
   }, [runs]);
 
   const isCreateRoute = location.pathname === ROUTES.new;
-  const isEditRoute = Boolean(selectedRoutineId && location.pathname.endsWith('/edit'));
-  const isRunsRoute = Boolean(selectedRoutineId && !isCreateRoute && !isEditRoute);
-  const selectedRoutine = selectedRoutineId ? routines.find((routine) => routine.id === selectedRoutineId) ?? null : null;
+  const isEditRoute = Boolean(selectedScheduledTaskId && location.pathname.endsWith('/edit'));
+  const isRunsRoute = Boolean(selectedScheduledTaskId && !isCreateRoute && !isEditRoute);
+  const selectedScheduledTask = selectedScheduledTaskId ? scheduledTasks.find((scheduledTask) => scheduledTask.id === selectedScheduledTaskId) ?? null : null;
   const selectedRunId = runId ?? null;
   const activeRunId = selectedRunId ?? runs[0]?.id ?? null;
-  const waitingForRun = Boolean(runPoll && runPoll.jobId === selectedRoutineId);
+  const waitingForRun = Boolean(runPoll && runPoll.scheduledTaskId === selectedScheduledTaskId);
 
-  const replaceRoutine = useCallback((routine: Routine) => {
-    setRoutines((current) => (
-      current.some((item) => item.id === routine.id)
-        ? current.map((item) => (item.id === routine.id ? routine : item))
-        : [routine, ...current]
+  const replaceScheduledTask = useCallback((scheduledTask: ScheduledTask) => {
+    setScheduledTasks((current) => (
+      current.some((item) => item.id === scheduledTask.id)
+        ? current.map((item) => (item.id === scheduledTask.id ? scheduledTask : item))
+        : [scheduledTask, ...current]
     ));
   }, []);
 
-  const loadRoutines = useCallback(async () => {
-    setLoadingRoutines(true);
+  const loadScheduledTasks = useCallback(async () => {
+    setLoadingScheduledTasks(true);
     try {
-      const { jobs } = await fetchRoutines(true);
-      setRoutines(jobs);
+      const { scheduledTasks: nextScheduledTasks } = await fetchScheduledTasks(true);
+      setScheduledTasks(nextScheduledTasks);
       setError(null);
     } catch (err) {
-      setError(toErrorMessage(err, 'Failed to load routines'));
+      setError(toErrorMessage(err, 'Failed to load scheduled tasks'));
     } finally {
-      setLoadingRoutines(false);
+      setLoadingScheduledTasks(false);
     }
   }, []);
 
-  const refreshRuns = useCallback(async (jobId: string) => {
+  const refreshRuns = useCallback(async (scheduledTaskId: string) => {
     setLoadingRuns(true);
     try {
-      const { runs: nextRuns } = await fetchRoutineRuns(jobId, RUNS_PAGE_SIZE);
+      const { runs: nextRuns } = await fetchScheduledTaskRuns(scheduledTaskId, RUNS_PAGE_SIZE);
       setRuns(nextRuns);
       setError(null);
     } catch (err) {
-      setError(toErrorMessage(err, 'Failed to load routine runs'));
+      setError(toErrorMessage(err, 'Failed to load scheduled task runs'));
     } finally {
       setLoadingRuns(false);
     }
   }, []);
 
   useEffect(() => {
-    loadRoutines();
-  }, [loadRoutines]);
+    loadScheduledTasks();
+  }, [loadScheduledTasks]);
 
   useEffect(() => {
-    if (!selectedRoutineId || selectedRoutine || loadingRoutines) return;
+    if (!selectedScheduledTaskId || selectedScheduledTask || loadingScheduledTasks) return;
     let cancelled = false;
-    fetchRoutine(selectedRoutineId)
-      .then(({ job }) => {
+    fetchScheduledTask(selectedScheduledTaskId)
+      .then(({ scheduledTask }) => {
         if (cancelled) return;
-        if (job) replaceRoutine(job);
+        if (scheduledTask) replaceScheduledTask(scheduledTask);
         else navigate(ROUTES.list, { replace: true });
       })
       .catch((err) => {
-        if (!cancelled) setError(toErrorMessage(err, 'Failed to load routine'));
+        if (!cancelled) setError(toErrorMessage(err, 'Failed to load scheduled task'));
       });
     return () => { cancelled = true; };
-  }, [loadingRoutines, navigate, replaceRoutine, selectedRoutine, selectedRoutineId]);
+  }, [loadingScheduledTasks, navigate, replaceScheduledTask, selectedScheduledTask, selectedScheduledTaskId]);
 
   useEffect(() => {
-    if (!selectedRoutineId || !isRunsRoute) {
+    if (!selectedScheduledTaskId || !isRunsRoute) {
       setRuns([]);
       setRunContent(null);
       return;
     }
-    refreshRuns(selectedRoutineId).catch(() => {});
-  }, [isRunsRoute, refreshRuns, selectedRoutineId]);
+    refreshRuns(selectedScheduledTaskId).catch(() => {});
+  }, [isRunsRoute, refreshRuns, selectedScheduledTaskId]);
 
   useEffect(() => {
-    if (selectedRoutineId && isRunsRoute && !location.pathname.includes('/runs')) {
-      navigate(ROUTES.runs(selectedRoutineId), { replace: true });
+    if (selectedScheduledTaskId && isRunsRoute && !location.pathname.includes('/runs')) {
+      navigate(ROUTES.runs(selectedScheduledTaskId), { replace: true });
     }
-  }, [isRunsRoute, location.pathname, navigate, selectedRoutineId]);
+  }, [isRunsRoute, location.pathname, navigate, selectedScheduledTaskId]);
 
   useEffect(() => {
     if (!runPoll) return;
@@ -1265,16 +1265,16 @@ export function RoutinesPage() {
       }
 
       try {
-        const { runs: latest } = await fetchRoutineRuns(runPoll.jobId, RUNS_PAGE_SIZE);
+        const { runs: latest } = await fetchScheduledTaskRuns(runPoll.scheduledTaskId, RUNS_PAGE_SIZE);
         if (cancelled) return;
-        const newRun = findNewRoutineRun(latest, runPoll);
+        const newRun = findNewScheduledTaskRun(latest, runPoll);
         if (newRun) {
-          if (selectedRoutineId === runPoll.jobId) {
+          if (selectedScheduledTaskId === runPoll.scheduledTaskId) {
             setRuns(latest);
-            navigate(ROUTES.run(runPoll.jobId, newRun.id));
+            navigate(ROUTES.run(runPoll.scheduledTaskId, newRun.id));
           }
-          fetchRoutine(runPoll.jobId)
-            .then(({ job }) => { if (job) replaceRoutine(job); })
+          fetchScheduledTask(runPoll.scheduledTaskId)
+            .then(({ scheduledTask }) => { if (scheduledTask) replaceScheduledTask(scheduledTask); })
             .catch(() => {});
           setRunPoll(null);
           return;
@@ -1291,10 +1291,10 @@ export function RoutinesPage() {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [navigate, replaceRoutine, runPoll, selectedRoutineId]);
+  }, [navigate, replaceScheduledTask, runPoll, selectedScheduledTaskId]);
 
   useEffect(() => {
-    if (!isRunsRoute || !selectedRoutineId || !activeRunId) {
+    if (!isRunsRoute || !selectedScheduledTaskId || !activeRunId) {
       setRunContent(null);
       return;
     }
@@ -1302,7 +1302,7 @@ export function RoutinesPage() {
     let cancelled = false;
     setRunContent(null);
     setLoadingContent(true);
-    fetchRoutineRunContent(selectedRoutineId, activeRunId)
+    fetchScheduledTaskRunContent(selectedScheduledTaskId, activeRunId)
       .then(({ content }) => {
         if (!cancelled) setRunContent(content);
       })
@@ -1314,90 +1314,90 @@ export function RoutinesPage() {
       });
 
     return () => { cancelled = true; };
-  }, [activeRunId, isRunsRoute, selectedRoutineId]);
+  }, [activeRunId, isRunsRoute, selectedScheduledTaskId]);
 
-  const currentRoutinePath = useCallback(() => `${location.pathname}${location.search}`, [location.pathname, location.search]);
+  const currentScheduledTaskPath = useCallback(() => `${location.pathname}${location.search}`, [location.pathname, location.search]);
 
-  const openCreate = useCallback((template?: RoutineTemplate) => {
+  const openCreate = useCallback((template?: ScheduledTaskTemplate) => {
     setTemplateDraft(template);
     setEditorError(null);
-    navigate(ROUTES.new, { state: { from: currentRoutinePath() } });
-  }, [currentRoutinePath, navigate]);
+    navigate(ROUTES.new, { state: { from: currentScheduledTaskPath() } });
+  }, [currentScheduledTaskPath, navigate]);
 
-  const openEdit = useCallback((routine: Routine) => {
+  const openEdit = useCallback((scheduledTask: ScheduledTask) => {
     setEditorError(null);
-    navigate(ROUTES.edit(routine.id), { state: { from: currentRoutinePath() } });
-  }, [currentRoutinePath, navigate]);
+    navigate(ROUTES.edit(scheduledTask.id), { state: { from: currentScheduledTaskPath() } });
+  }, [currentScheduledTaskPath, navigate]);
 
-  const runRoutineAction = useCallback(async (
+  const runScheduledTaskAction = useCallback(async (
     action: 'pause' | 'resume' | 'run',
-    routine: Routine,
+    scheduledTask: ScheduledTask,
   ) => {
-    setPendingAction({ action, jobId: routine.id });
-    const previousLatestRunId = selectedRoutineId === routine.id ? runsRef.current[0]?.id ?? null : null;
+    setPendingAction({ action, scheduledTaskId: scheduledTask.id });
+    const previousLatestRunId = selectedScheduledTaskId === scheduledTask.id ? runsRef.current[0]?.id ?? null : null;
 
     try {
-      let result: { job: Routine };
-      if (action === 'pause') result = await pauseRoutine(routine.id, DEFAULT_PAUSE_REASON);
-      else if (action === 'resume') result = await resumeRoutine(routine.id);
-      else result = await runRoutine(routine.id);
-      replaceRoutine(result.job);
+      let result: { scheduledTask: ScheduledTask };
+      if (action === 'pause') result = await pauseScheduledTask(scheduledTask.id, DEFAULT_PAUSE_REASON);
+      else if (action === 'resume') result = await resumeScheduledTask(scheduledTask.id);
+      else result = await runScheduledTask(scheduledTask.id);
+      replaceScheduledTask(result.scheduledTask);
       setError(null);
       if (action === 'run') {
         setRunPoll({
-          jobId: routine.id,
+          scheduledTaskId: scheduledTask.id,
           previousLatestRunId,
           startedAt: Date.now(),
         });
       }
     } catch (err) {
-      setError(toErrorMessage(err, `Failed to ${action} routine`));
+      setError(toErrorMessage(err, `Failed to ${action} scheduled task`));
     } finally {
       setPendingAction(null);
     }
-  }, [replaceRoutine, selectedRoutineId]);
+  }, [replaceScheduledTask, selectedScheduledTaskId]);
 
-  const submitEditor = useCallback(async (form: RoutineFormState) => {
+  const submitEditor = useCallback(async (form: ScheduledTaskFormState) => {
     setSaving(true);
     setEditorError(null);
     try {
       if (isCreateRoute) {
-        const input = routineInputFromForm(form) as RoutineInput;
-        const { job } = await createRoutine(input);
-        replaceRoutine(job);
+        const input = scheduledTaskInputFromForm(form) as ScheduledTaskInput;
+        const { scheduledTask } = await createScheduledTask(input);
+        replaceScheduledTask(scheduledTask);
         setTemplateDraft(undefined);
-        navigate(ROUTES.runs(job.id));
-      } else if (selectedRoutine) {
-        const updates = routineInputFromForm(form, selectedRoutine) as Partial<RoutineInput>;
+        navigate(ROUTES.runs(scheduledTask.id));
+      } else if (selectedScheduledTask) {
+        const updates = scheduledTaskInputFromForm(form, selectedScheduledTask) as Partial<ScheduledTaskInput>;
         if (Object.keys(updates).length > 0) {
-          const { job } = await updateRoutine(selectedRoutine.id, updates);
-          replaceRoutine(job);
+          const { scheduledTask } = await updateScheduledTask(selectedScheduledTask.id, updates);
+          replaceScheduledTask(scheduledTask);
         }
         setJustSaved(true);
       }
     } catch (err) {
-      setEditorError(toErrorMessage(err, isCreateRoute ? 'Failed to create routine' : 'Failed to update routine'));
+      setEditorError(toErrorMessage(err, isCreateRoute ? 'Failed to create scheduled task' : 'Failed to update scheduled task'));
     } finally {
       setSaving(false);
     }
-  }, [isCreateRoute, navigate, replaceRoutine, selectedRoutine]);
+  }, [isCreateRoute, navigate, replaceScheduledTask, selectedScheduledTask]);
 
   const cancelEditor = useCallback(() => {
     const from = sourcePathFromState(location.state);
     setTemplateDraft(undefined);
     if (from) navigate(from);
-    else if (selectedRoutineId) navigate(ROUTES.runs(selectedRoutineId));
+    else if (selectedScheduledTaskId) navigate(ROUTES.runs(selectedScheduledTaskId));
     else navigate(ROUTES.list);
-  }, [location.state, navigate, selectedRoutineId]);
+  }, [location.state, navigate, selectedScheduledTaskId]);
 
   const confirmDelete = useCallback(async () => {
     if (!deleteTarget) return;
-    const jobId = deleteTarget.id;
-    setPendingAction({ action: 'delete', jobId });
+    const scheduledTaskId = deleteTarget.id;
+    setPendingAction({ action: 'delete', scheduledTaskId });
     try {
-      await deleteRoutine(jobId);
-      setRoutines((current) => current.filter((routine) => routine.id !== jobId));
-      if (selectedRoutineId === jobId) {
+      await deleteScheduledTask(scheduledTaskId);
+      setScheduledTasks((current) => current.filter((scheduledTask) => scheduledTask.id !== scheduledTaskId));
+      if (selectedScheduledTaskId === scheduledTaskId) {
         navigate(ROUTES.list, { replace: true });
         setRuns([]);
         setRunContent(null);
@@ -1405,41 +1405,41 @@ export function RoutinesPage() {
       setDeleteTarget(null);
       setError(null);
     } catch (err) {
-      setError(toErrorMessage(err, 'Failed to delete routine'));
+      setError(toErrorMessage(err, 'Failed to delete scheduled task'));
     } finally {
       setPendingAction(null);
     }
-  }, [deleteTarget, navigate, selectedRoutineId]);
+  }, [deleteTarget, navigate, selectedScheduledTaskId]);
 
-  const goToRoutines = useCallback(() => navigate(ROUTES.list), [navigate]);
-  const openBlankRoutine = useCallback(() => openCreate(), [openCreate]);
-  const editSelectedRoutine = useCallback(() => {
-    if (selectedRoutine) openEdit(selectedRoutine);
-  }, [openEdit, selectedRoutine]);
-  const runSelectedRoutine = useCallback(() => {
-    if (selectedRoutine) runRoutineAction('run', selectedRoutine).catch(() => {});
-  }, [runRoutineAction, selectedRoutine]);
-  const selectRoutineRun = useCallback((nextRunId: string) => {
-    if (selectedRoutine) navigate(ROUTES.run(selectedRoutine.id, nextRunId));
-  }, [navigate, selectedRoutine]);
-  const openRoutineRuns = useCallback((routine: Routine) => {
-    navigate(ROUTES.runs(routine.id));
+  const goToScheduledTasks = useCallback(() => navigate(ROUTES.list), [navigate]);
+  const openBlankScheduledTask = useCallback(() => openCreate(), [openCreate]);
+  const editSelectedScheduledTask = useCallback(() => {
+    if (selectedScheduledTask) openEdit(selectedScheduledTask);
+  }, [openEdit, selectedScheduledTask]);
+  const runSelectedScheduledTask = useCallback(() => {
+    if (selectedScheduledTask) runScheduledTaskAction('run', selectedScheduledTask).catch(() => {});
+  }, [runScheduledTaskAction, selectedScheduledTask]);
+  const selectScheduledTaskRun = useCallback((nextRunId: string) => {
+    if (selectedScheduledTask) navigate(ROUTES.run(selectedScheduledTask.id, nextRunId));
+  }, [navigate, selectedScheduledTask]);
+  const openScheduledTaskRuns = useCallback((scheduledTask: ScheduledTask) => {
+    navigate(ROUTES.runs(scheduledTask.id));
   }, [navigate]);
-  const runRoutineFromList = useCallback((routine: Routine) => {
-    navigate(ROUTES.runs(routine.id));
-    runRoutineAction('run', routine).catch(() => {});
-  }, [navigate, runRoutineAction]);
-  const toggleRoutine = useCallback((routine: Routine) => {
-    runRoutineAction(routine.enabled ? 'pause' : 'resume', routine).catch(() => {});
-  }, [runRoutineAction]);
-  const requestDeleteRoutine = useCallback((routine: Routine) => {
-    setDeleteTarget(routine);
+  const runScheduledTaskFromList = useCallback((scheduledTask: ScheduledTask) => {
+    navigate(ROUTES.runs(scheduledTask.id));
+    runScheduledTaskAction('run', scheduledTask).catch(() => {});
+  }, [navigate, runScheduledTaskAction]);
+  const toggleScheduledTask = useCallback((scheduledTask: ScheduledTask) => {
+    runScheduledTaskAction(scheduledTask.enabled ? 'pause' : 'resume', scheduledTask).catch(() => {});
+  }, [runScheduledTaskAction]);
+  const requestDeleteScheduledTask = useCallback((scheduledTask: ScheduledTask) => {
+    setDeleteTarget(scheduledTask);
   }, []);
 
   function renderBody() {
     if (isCreateRoute) {
       return (
-        <RoutineEditorPage
+        <ScheduledTaskEditorPage
           key={`create:${templateDraft?.key ?? 'blank'}`}
           mode="create"
           template={templateDraft}
@@ -1451,17 +1451,17 @@ export function RoutinesPage() {
       );
     }
 
-    if (loadingRoutines && routines.length === 0) {
-      return <LoadingRoutinesView />;
+    if (loadingScheduledTasks && scheduledTasks.length === 0) {
+      return <LoadingScheduledTasksView />;
     }
 
     if (isEditRoute) {
-      if (!selectedRoutine) return <RoutineNotFoundView onBack={goToRoutines} />;
+      if (!selectedScheduledTask) return <ScheduledTaskNotFoundView onBack={goToScheduledTasks} />;
       return (
-        <RoutineEditorPage
-          key={`edit:${selectedRoutine.id}`}
+        <ScheduledTaskEditorPage
+          key={`edit:${selectedScheduledTask.id}`}
           mode="edit"
-          routine={selectedRoutine}
+          scheduledTask={selectedScheduledTask}
           saving={saving}
           justSaved={justSaved}
           error={editorError}
@@ -1472,10 +1472,10 @@ export function RoutinesPage() {
     }
 
     if (isRunsRoute) {
-      if (!selectedRoutine) return <RoutineNotFoundView onBack={goToRoutines} />;
+      if (!selectedScheduledTask) return <ScheduledTaskNotFoundView onBack={goToScheduledTasks} />;
       return (
-        <RoutineRunsView
-          routine={selectedRoutine}
+        <ScheduledTaskRunsView
+          scheduledTask={selectedScheduledTask}
           runs={runs}
           activeRunId={activeRunId}
           runContent={runContent}
@@ -1485,27 +1485,27 @@ export function RoutinesPage() {
           pendingAction={pendingAction}
           waitingForRun={waitingForRun}
           onRunFilterChange={setRunFilter}
-          onEdit={editSelectedRoutine}
-          onRun={runSelectedRoutine}
-          onSelectRun={selectRoutineRun}
+          onEdit={editSelectedScheduledTask}
+          onRun={runSelectedScheduledTask}
+          onSelectRun={selectScheduledTaskRun}
         />
       );
     }
 
-    if (routines.length === 0) {
-      return <EmptyRoutinesView onTemplate={openCreate} onCreate={openBlankRoutine} />;
+    if (scheduledTasks.length === 0) {
+      return <EmptyScheduledTasksView onTemplate={openCreate} onCreate={openBlankScheduledTask} />;
     }
 
     return (
-      <RoutinesList
-        routines={routines}
+      <ScheduledTasksList
+        scheduledTasks={scheduledTasks}
         pendingAction={pendingAction}
-        onOpenRuns={openRoutineRuns}
-        onCreate={openBlankRoutine}
+        onOpenRuns={openScheduledTaskRuns}
+        onCreate={openBlankScheduledTask}
         onEdit={openEdit}
-        onRun={runRoutineFromList}
-        onToggle={toggleRoutine}
-        onDelete={requestDeleteRoutine}
+        onRun={runScheduledTaskFromList}
+        onToggle={toggleScheduledTask}
+        onDelete={requestDeleteScheduledTask}
       />
     );
   }
@@ -1524,9 +1524,9 @@ export function RoutinesPage() {
 
       {deleteTarget && (
         <DeleteConfirmModal
-          title="Delete routine?"
-          body={`Delete "${deleteTarget.name}" from Hermes routine storage.`}
-          isConfirming={pendingAction?.action === 'delete' && pendingAction.jobId === deleteTarget.id}
+          title="Delete scheduled task?"
+          body={`Delete "${deleteTarget.name}" from Hermes scheduled task storage.`}
+          isConfirming={pendingAction?.action === 'delete' && pendingAction.scheduledTaskId === deleteTarget.id}
           onConfirm={confirmDelete}
           onCancel={() => setDeleteTarget(null)}
         />

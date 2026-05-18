@@ -1,5 +1,5 @@
 import { CronExpressionParser } from 'cron-parser';
-import type { Routine } from '@shared/types';
+import type { ScheduledTask } from '@shared/types';
 
 export type SchedulePreset = 'weekdays' | 'daily' | 'weekly' | 'interval' | 'custom';
 export type IntervalUnit = 'm' | 'h' | 'd';
@@ -23,9 +23,9 @@ export function nextRun(cron: string): Date | null {
   }
 }
 
-export function scheduleSummary(routine: Routine): string {
-  if (routine.scheduleDisplay) return routine.scheduleDisplay;
-  const kind = typeof routine.schedule?.kind === 'string' ? routine.schedule.kind : null;
+export function scheduleSummary(scheduledTask: ScheduledTask): string {
+  if (scheduledTask.scheduleDisplay) return scheduledTask.scheduleDisplay;
+  const kind = typeof scheduledTask.schedule?.kind === 'string' ? scheduledTask.schedule.kind : null;
   return kind ?? 'Unscheduled';
 }
 
@@ -40,13 +40,13 @@ export function intervalLabel(minutes: number): string {
   return `every ${token.value}${token.unit}`;
 }
 
-export function scheduleRaw(routine: Routine): string {
-  const schedule = routine.schedule;
+export function scheduleRaw(scheduledTask: ScheduledTask): string {
+  const schedule = scheduledTask.schedule;
   if (!schedule) return '';
   if (schedule.kind === 'cron' && typeof schedule.expr === 'string') return schedule.expr;
   if (schedule.kind === 'interval' && typeof schedule.minutes === 'number') return intervalLabel(schedule.minutes);
   if (schedule.kind === 'once' && typeof schedule.run_at === 'string') return schedule.run_at;
-  return routine.scheduleDisplay ?? '';
+  return scheduledTask.scheduleDisplay ?? '';
 }
 
 function timeFromParts(hour: number, minute: number): string {

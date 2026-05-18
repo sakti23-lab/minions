@@ -2,8 +2,8 @@ import type {
   AgentRunSettings,
   CompactResult,
   ContextUsage,
-  Routine,
-  RoutineInput,
+  ScheduledTask,
+  ScheduledTaskInput,
   SessionMetadata,
   TaskMessage,
 } from '../../shared/types.js';
@@ -69,21 +69,21 @@ export interface AgentAdapter {
     },
   ): Promise<CompactResult>;
 
-  listRoutines(includeDisabled?: boolean): Promise<Routine[]>;
+  listScheduledTasks(includeDisabled?: boolean): Promise<ScheduledTask[]>;
 
-  getRoutine(jobId: string): Promise<Routine | null>;
+  getScheduledTask(scheduledTaskId: string): Promise<ScheduledTask | null>;
 
-  createRoutine(input: RoutineInput): Promise<Routine>;
+  createScheduledTask(input: ScheduledTaskInput): Promise<ScheduledTask>;
 
-  updateRoutine(jobId: string, updates: Partial<RoutineInput>): Promise<Routine | null>;
+  updateScheduledTask(scheduledTaskId: string, updates: Partial<ScheduledTaskInput>): Promise<ScheduledTask | null>;
 
-  pauseRoutine(jobId: string, reason?: string): Promise<Routine | null>;
+  pauseScheduledTask(scheduledTaskId: string, reason?: string): Promise<ScheduledTask | null>;
 
-  resumeRoutine(jobId: string): Promise<Routine | null>;
+  resumeScheduledTask(scheduledTaskId: string): Promise<ScheduledTask | null>;
 
-  runRoutine(jobId: string): Promise<Routine | null>;
+  runScheduledTask(scheduledTaskId: string): Promise<ScheduledTask | null>;
 
-  removeRoutine(jobId: string): Promise<boolean>;
+  removeScheduledTask(scheduledTaskId: string): Promise<boolean>;
 
-  tickRoutines(): Promise<number>;
+  tickScheduledTasks(): Promise<number>;
 }

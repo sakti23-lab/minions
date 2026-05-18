@@ -5,7 +5,7 @@ import { Board } from './components/Board';
 import { NewTaskPage } from './components/NewTaskPage';
 import { TaskDetailPage } from './components/TaskDetailPage';
 import { SettingsPage } from './components/SettingsPage';
-import { RoutinesPage } from './components/RoutinesPage';
+import { ScheduledTasksPage } from './components/ScheduledTasksPage';
 import { SkillsPage } from './components/SkillsPage';
 import { FileBrowserPage } from './components/FileBrowserPage';
 import { Toaster } from 'sonner';
@@ -26,13 +26,13 @@ function AppShell() {
             <Route path="/" element={<Board />} />
             <Route path="/tasks/new" element={<NewTaskPage />} />
             <Route path="/tasks/:taskId" element={<TaskDetailPage />} />
-            <Route path="/cron" element={<Navigate to="/routines" replace />} />
-            <Route path="/routines" element={<RoutinesPage />} />
-            <Route path="/routines/new" element={<RoutinesPage />} />
-            <Route path="/routines/:routineId/edit" element={<RoutinesPage />} />
-            <Route path="/routines/:routineId/runs" element={<RoutinesPage />} />
-            <Route path="/routines/:routineId/runs/:runId" element={<RoutinesPage />} />
-            <Route path="/routines/:routineId" element={<RoutinesPage />} />
+            <Route path="/cron" element={<Navigate to="/scheduled-tasks" replace />} />
+            <Route path="/scheduled-tasks" element={<ScheduledTasksPage />} />
+            <Route path="/scheduled-tasks/new" element={<ScheduledTasksPage />} />
+            <Route path="/scheduled-tasks/:scheduledTaskId/edit" element={<ScheduledTasksPage />} />
+            <Route path="/scheduled-tasks/:scheduledTaskId/runs" element={<ScheduledTasksPage />} />
+            <Route path="/scheduled-tasks/:scheduledTaskId/runs/:runId" element={<ScheduledTasksPage />} />
+            <Route path="/scheduled-tasks/:scheduledTaskId" element={<ScheduledTasksPage />} />
             <Route path="/skills" element={<SkillsPage />} />
             <Route path="/files" element={<FileBrowserPage />} />
             <Route path="/settings" element={<SettingsPage />} />

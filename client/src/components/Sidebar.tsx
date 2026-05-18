@@ -124,9 +124,9 @@ export function Sidebar() {
         />
         <SidebarLink
           icon={<Repeat size={18} />}
-          label="Routines"
-          to="/routines"
-          active={isActive('/routines')}
+          label="Scheduled Tasks"
+          to="/scheduled-tasks"
+          active={isActive('/scheduled-tasks')}
           collapsed={desktopCollapsed}
         />
         <SidebarLink
@@ -181,7 +181,7 @@ function SidebarLink({
       <span className={active ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-500 dark:text-zinc-400'}>
         {icon}
       </span>
-      <span className="block max-w-full truncate sm:hidden">{mobileLabel ?? label}</span>
+      <span className="block max-w-full whitespace-normal text-center leading-tight sm:hidden">{mobileLabel ?? label}</span>
       {!collapsed && <span className="hidden truncate sm:block">{label}</span>}
       {!collapsed && shortcut && (
         Array.isArray(shortcut) ? (

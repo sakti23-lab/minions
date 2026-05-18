@@ -19,10 +19,10 @@ import type {
   TaskMessage,
   TaskStatus,
   ReasoningEffort,
-  Routine,
-  RoutineInput,
-  RoutineRun,
-  RoutineRunContent,
+  ScheduledTask,
+  ScheduledTaskInput,
+  ScheduledTaskRun,
+  ScheduledTaskRunContent,
 } from '@shared/types';
 
 export type { AgentRunSettings };
@@ -153,16 +153,16 @@ export function compactTask(taskId: string, focusTopic?: string | null) {
   });
 }
 
-export function fetchRoutines(includeDisabled = true) {
-  return request<{ jobs: Routine[] }>(`/routines/jobs?includeDisabled=${includeDisabled ? 'true' : 'false'}`);
+export function fetchScheduledTasks(includeDisabled = true) {
+  return request<{ scheduledTasks: ScheduledTask[] }>(`/scheduled-tasks?includeDisabled=${includeDisabled ? 'true' : 'false'}`);
 }
 
-export function fetchRoutine(jobId: string) {
-  return request<{ job: Routine | null }>(`/routines/jobs/${encodeURIComponent(jobId)}`);
+export function fetchScheduledTask(scheduledTaskId: string) {
+  return request<{ scheduledTask: ScheduledTask | null }>(`/scheduled-tasks/${encodeURIComponent(scheduledTaskId)}`);
 }
 
-export function createRoutine(input: RoutineInput) {
-  return request<{ job: Routine }>('/routines/jobs', {
+export function createScheduledTask(input: ScheduledTaskInput) {
+  return request<{ scheduledTask: ScheduledTask }>('/scheduled-tasks', {
     method: 'POST',
     body: JSON.stringify(input),
   });
@@ -232,42 +232,42 @@ export function deleteFileEntry(path: string, recursive = false) {
   });
 }
 
-export function updateRoutine(jobId: string, updates: Partial<RoutineInput>) {
-  return request<{ job: Routine }>(`/routines/jobs/${encodeURIComponent(jobId)}`, {
+export function updateScheduledTask(scheduledTaskId: string, updates: Partial<ScheduledTaskInput>) {
+  return request<{ scheduledTask: ScheduledTask }>(`/scheduled-tasks/${encodeURIComponent(scheduledTaskId)}`, {
     method: 'PATCH',
     body: JSON.stringify(updates),
   });
 }
 
-export function fetchRoutineRuns(jobId: string, limit = 20) {
-  return request<{ runs: RoutineRun[] }>(`/routines/jobs/${encodeURIComponent(jobId)}/runs?limit=${limit}`);
+export function fetchScheduledTaskRuns(scheduledTaskId: string, limit = 20) {
+  return request<{ runs: ScheduledTaskRun[] }>(`/scheduled-tasks/${encodeURIComponent(scheduledTaskId)}/runs?limit=${limit}`);
 }
 
-export function fetchRoutineRunContent(jobId: string, runId: string) {
-  return request<{ content: RoutineRunContent }>(`/routines/jobs/${encodeURIComponent(jobId)}/runs/${encodeURIComponent(runId)}/content`);
+export function fetchScheduledTaskRunContent(scheduledTaskId: string, runId: string) {
+  return request<{ content: ScheduledTaskRunContent }>(`/scheduled-tasks/${encodeURIComponent(scheduledTaskId)}/runs/${encodeURIComponent(runId)}/content`);
 }
 
-export function pauseRoutine(jobId: string, reason?: string) {
-  return request<{ job: Routine }>(`/routines/jobs/${encodeURIComponent(jobId)}/pause`, {
+export function pauseScheduledTask(scheduledTaskId: string, reason?: string) {
+  return request<{ scheduledTask: ScheduledTask }>(`/scheduled-tasks/${encodeURIComponent(scheduledTaskId)}/pause`, {
     method: 'POST',
     body: JSON.stringify(reason ? { reason } : {}),
   });
 }
 
-export function resumeRoutine(jobId: string) {
-  return request<{ job: Routine }>(`/routines/jobs/${encodeURIComponent(jobId)}/resume`, {
+export function resumeScheduledTask(scheduledTaskId: string) {
+  return request<{ scheduledTask: ScheduledTask }>(`/scheduled-tasks/${encodeURIComponent(scheduledTaskId)}/resume`, {
     method: 'POST',
   });
 }
 
-export function runRoutine(jobId: string) {
-  return request<{ job: Routine }>(`/routines/jobs/${encodeURIComponent(jobId)}/run`, {
+export function runScheduledTask(scheduledTaskId: string) {
+  return request<{ scheduledTask: ScheduledTask }>(`/scheduled-tasks/${encodeURIComponent(scheduledTaskId)}/run`, {
     method: 'POST',
   });
 }
 
-export function deleteRoutine(jobId: string) {
-  return request<{ ok: boolean }>(`/routines/jobs/${encodeURIComponent(jobId)}`, {
+export function deleteScheduledTask(scheduledTaskId: string) {
+  return request<{ ok: boolean }>(`/scheduled-tasks/${encodeURIComponent(scheduledTaskId)}`, {
     method: 'DELETE',
   });
 }

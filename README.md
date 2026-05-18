@@ -40,7 +40,7 @@ The Settings page also shows the version of the running Minions server.
 - **Live streaming**: watch tool calls, reasoning, and responses in real time
 - **Human-in-the-loop**: agents propose completion; you verify and close. Nothing moves to done without your sign-off
 - **Per-task model control**: override model and reasoning effort on any task
-- **Routines**: create and manage recurring Hermes jobs, history, and output
+- **Scheduled Tasks**: create and manage recurring Hermes jobs, history, and output
 - **File browser**: see files agents have created in the workspace directory
 - **Local-first option**: self-host with SQLite, no account, and no cloud dependency. Your local data stays on your machine
 
@@ -56,7 +56,7 @@ Each task is a persistent Hermes root session. You talk to it, it works, and the
 
 ## Roadmap
 
-- **Routine supervision**: automatically monitor, recover, and report on scheduled agent jobs
+- **Scheduled task supervision**: automatically monitor, recover, and report on scheduled agent jobs
 - **Notifications**: get alerted via Telegram, WhatsApp, or webhook when a task needs review
 - **Skills library**: pluggable skill templates for common workflows (lead gen, web research, content pipelines, data collection, competitive monitoring, outbound sequences)
 - **OpenClaw adapter**: run Minions against OpenClaw-hosted agents

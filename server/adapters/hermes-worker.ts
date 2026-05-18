@@ -8,8 +8,8 @@ import type {
   AgentDefaults,
   AgentModelsResponse,
   CompactResult,
-  Routine,
-  RoutineInput,
+  ScheduledTask,
+  ScheduledTaskInput,
   SessionMetadata,
   TaskMessage,
 } from '../../shared/types.js';
@@ -514,74 +514,74 @@ export class HermesWorkerAdapter implements AgentAdapter {
     return await this.client.request<AgentModelsResponse>('models.list');
   }
 
-  async listRoutines(includeDisabled = false): Promise<Routine[]> {
-    const result = await this.client.request<{ jobs: Routine[] }>({
-      type: 'routines.jobs.list',
+  async listScheduledTasks(includeDisabled = false): Promise<ScheduledTask[]> {
+    const result = await this.client.request<{ scheduledTasks: ScheduledTask[] }>({
+      type: 'scheduledTasks.list',
       includeDisabled,
     });
-    return result.jobs;
+    return result.scheduledTasks;
   }
 
-  async getRoutine(jobId: string): Promise<Routine | null> {
-    const result = await this.client.request<{ job: Routine | null }>({
-      type: 'routines.jobs.get',
-      jobId,
+  async getScheduledTask(scheduledTaskId: string): Promise<ScheduledTask | null> {
+    const result = await this.client.request<{ scheduledTask: ScheduledTask | null }>({
+      type: 'scheduledTasks.get',
+      scheduledTaskId,
     });
-    return result.job;
+    return result.scheduledTask;
   }
 
-  async createRoutine(input: RoutineInput): Promise<Routine> {
-    const result = await this.client.request<{ job: Routine }>({
-      type: 'routines.jobs.create',
+  async createScheduledTask(input: ScheduledTaskInput): Promise<ScheduledTask> {
+    const result = await this.client.request<{ scheduledTask: ScheduledTask }>({
+      type: 'scheduledTasks.create',
       ...input,
     });
-    return result.job;
+    return result.scheduledTask;
   }
 
-  async updateRoutine(jobId: string, updates: Partial<RoutineInput>): Promise<Routine | null> {
-    const result = await this.client.request<{ job: Routine | null }>({
-      type: 'routines.jobs.update',
-      jobId,
+  async updateScheduledTask(scheduledTaskId: string, updates: Partial<ScheduledTaskInput>): Promise<ScheduledTask | null> {
+    const result = await this.client.request<{ scheduledTask: ScheduledTask | null }>({
+      type: 'scheduledTasks.update',
+      scheduledTaskId,
       ...updates,
     });
-    return result.job;
+    return result.scheduledTask;
   }
 
-  async pauseRoutine(jobId: string, reason?: string): Promise<Routine | null> {
-    const result = await this.client.request<{ job: Routine | null }>({
-      type: 'routines.jobs.pause',
-      jobId,
+  async pauseScheduledTask(scheduledTaskId: string, reason?: string): Promise<ScheduledTask | null> {
+    const result = await this.client.request<{ scheduledTask: ScheduledTask | null }>({
+      type: 'scheduledTasks.pause',
+      scheduledTaskId,
       reason,
     });
-    return result.job;
+    return result.scheduledTask;
   }
 
-  async resumeRoutine(jobId: string): Promise<Routine | null> {
-    const result = await this.client.request<{ job: Routine | null }>({
-      type: 'routines.jobs.resume',
-      jobId,
+  async resumeScheduledTask(scheduledTaskId: string): Promise<ScheduledTask | null> {
+    const result = await this.client.request<{ scheduledTask: ScheduledTask | null }>({
+      type: 'scheduledTasks.resume',
+      scheduledTaskId,
     });
-    return result.job;
+    return result.scheduledTask;
   }
 
-  async runRoutine(jobId: string): Promise<Routine | null> {
-    const result = await this.client.request<{ job: Routine | null }>({
-      type: 'routines.jobs.run',
-      jobId,
+  async runScheduledTask(scheduledTaskId: string): Promise<ScheduledTask | null> {
+    const result = await this.client.request<{ scheduledTask: ScheduledTask | null }>({
+      type: 'scheduledTasks.run',
+      scheduledTaskId,
     });
-    return result.job;
+    return result.scheduledTask;
   }
 
-  async removeRoutine(jobId: string): Promise<boolean> {
+  async removeScheduledTask(scheduledTaskId: string): Promise<boolean> {
     const result = await this.client.request<{ ok: boolean }>({
-      type: 'routines.jobs.remove',
-      jobId,
+      type: 'scheduledTasks.remove',
+      scheduledTaskId,
     });
     return result.ok;
   }
 
-  async tickRoutines(): Promise<number> {
-    const result = await this.client.request<{ executed: number }>({ type: 'routines.tick' });
+  async tickScheduledTasks(): Promise<number> {
+    const result = await this.client.request<{ executed: number }>({ type: 'scheduledTasks.tick' });
     return result.executed;
   }
 
