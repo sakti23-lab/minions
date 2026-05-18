@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import type { BoardEvent } from '@shared/types';
 import { useStore } from '../lib/store';
 import { fetchTasks } from '../lib/api';
+import { playCompletionSound } from './useSoundOnComplete';
 
 export function useTasks() {
   const setTasks = useStore((s) => s.setTasks);
@@ -35,6 +36,12 @@ export function useTasks() {
         try {
           const event = JSON.parse(e.data) as BoardEvent;
           if (event.type === 'task_created' || event.type === 'task_updated') {
+            if (event.type === 'task_updated') {
+              const prev = useStore.getState().tasks.find((t) => t.id === event.task.id);
+              if (prev && prev.status === 'in_progress' && event.task.status === 'in_review') {
+                playCompletionSound();
+              }
+            }
             upsertTask(event.task);
           } else if (event.type === 'task_deleted') {
             removeTask(event.taskId);

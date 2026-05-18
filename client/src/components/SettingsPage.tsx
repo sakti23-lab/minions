@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Settings, Bot, Sun, Moon, Monitor, Info } from 'lucide-react';
+import { Settings, Bot, Sun, Moon, Monitor, Info, Volume2, VolumeX, Play } from 'lucide-react';
 import { useTheme, type ThemePreference } from '../hooks/useTheme';
+import { useSoundOnComplete } from '../hooks/useSoundOnComplete';
 import { useAgentConfig } from '../hooks/useAgentConfig';
 import { fetchAppVersion, updateAgentDefaults } from '../lib/api';
 import type { AppVersion } from '@shared/types';
@@ -11,11 +12,43 @@ import {
   type ReasoningEffort,
 } from '@shared/types';
 
-const themeOptions: { value: ThemePreference; label: string; icon: typeof Sun }[] = [
+type SegmentOption<T> = { value: T; label: string; icon: typeof Sun };
+
+const themeOptions: SegmentOption<ThemePreference>[] = [
   { value: 'system', label: 'System', icon: Monitor },
   { value: 'light', label: 'Light', icon: Sun },
   { value: 'dark', label: 'Dark', icon: Moon },
 ];
+
+const soundOptions: SegmentOption<boolean>[] = [
+  { value: false, label: 'Off', icon: VolumeX },
+  { value: true, label: 'On', icon: Volume2 },
+];
+
+function SegmentedGroup<T>({ options, value, onChange }: {
+  options: SegmentOption<T>[];
+  value: T;
+  onChange: (next: T) => void;
+}) {
+  return (
+    <div className="inline-flex rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-1 gap-1">
+      {options.map(({ value: optValue, label, icon: Icon }) => (
+        <button
+          key={String(optValue)}
+          onClick={() => onChange(optValue)}
+          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+            value === optValue
+              ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100'
+              : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
+          }`}
+        >
+          <Icon size={14} />
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 function splitQualifiedModel(value: string): { provider: string; model: string } | null {
   if (!value.startsWith('@')) return null;
@@ -29,6 +62,7 @@ function splitQualifiedModel(value: string): { provider: string; model: string }
 
 export function SettingsPage() {
   const { theme, setTheme } = useTheme();
+  const { enabled: soundEnabled, setEnabled: setSoundEnabled, playPreview } = useSoundOnComplete();
 
   const { defaults: agentDefaults, modelGroups, isLoading: isLoadingDefaults, replaceDefaults } = useAgentConfig();
   const [appVersion, setAppVersion] = useState<AppVersion | null>(null);
@@ -150,21 +184,22 @@ export function SettingsPage() {
 
         <div>
           <h2 className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500 mb-2">Theme</h2>
-          <div className="inline-flex rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-1 gap-1">
-            {themeOptions.map(({ value, label, icon: Icon }) => (
-              <button
-                key={value}
-                onClick={() => setTheme(value)}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                  theme === value
-                    ? 'bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100'
-                    : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
-                }`}
-              >
-                <Icon size={14} />
-                {label}
-              </button>
-            ))}
+          <SegmentedGroup options={themeOptions} value={theme} onChange={setTheme} />
+        </div>
+
+        <div>
+          <h2 className="text-xs font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500 mb-2">Sound on task completion</h2>
+          <div className="flex items-center gap-2 flex-wrap">
+            <SegmentedGroup options={soundOptions} value={soundEnabled} onChange={setSoundEnabled} />
+            <button
+              onClick={playPreview}
+              aria-label="Preview sound"
+              title="Preview sound"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300 transition-colors"
+            >
+              <Play size={14} />
+              Preview
+            </button>
           </div>
         </div>
 
