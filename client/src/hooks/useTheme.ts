@@ -3,11 +3,12 @@ import { useState, useEffect, useCallback } from 'react';
 export type ThemePreference = 'system' | 'light' | 'dark';
 
 const STORAGE_KEY = 'theme';
+const DEFAULT_THEME: ThemePreference = 'light';
 
 function getStored(): ThemePreference {
   const v = localStorage.getItem(STORAGE_KEY);
   if (v === 'light' || v === 'dark' || v === 'system') return v;
-  return 'system';
+  return DEFAULT_THEME;
 }
 
 function apply(pref: ThemePreference) {
