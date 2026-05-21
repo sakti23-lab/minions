@@ -176,7 +176,9 @@ export function fetchSkillContent(id: string) {
   return request<{ skill: SkillMeta; content: string }>(`/skills/${encodeURIComponent(id)}/content`);
 }
 
-export function listFiles(path = '~/.minions/workspace') {
+export const WORKSPACE_ROOT = '~/.minions/workspace';
+
+export function listFiles(path = WORKSPACE_ROOT) {
   return request<FileListResponse>(`/files/list?path=${encodeURIComponent(path)}`);
 }
 
@@ -209,14 +211,17 @@ export function renameFileEntry(path: string, newName: string) {
   });
 }
 
-export function uploadFileEntries(parentPath: string, files: File[]) {
+export function uploadFileEntries(
+  parentPath: string,
+  files: File[],
+  relativePathFor: (file: File) => string = fileRelativePath,
+) {
   const formData = new FormData();
   formData.append('targetPath', parentPath);
 
   for (const file of files) {
-    const relativePath = fileRelativePath(file);
     formData.append('files', file, file.name);
-    formData.append('relativePaths', relativePath);
+    formData.append('relativePaths', relativePathFor(file));
   }
 
   return request<FileUploadResponse>('/files/upload', {
@@ -270,6 +275,12 @@ export function deleteScheduledTask(scheduledTaskId: string) {
   return request<{ ok: boolean }>(`/scheduled-tasks/${encodeURIComponent(scheduledTaskId)}`, {
     method: 'DELETE',
   });
+}
+
+export async function uploadChatAttachments(taskId: string, files: File[]): Promise<string[]> {
+  const relativePathFor = (file: File) => `uploads/${taskId}/${file.name}`;
+  await uploadFileEntries(WORKSPACE_ROOT, files, relativePathFor);
+  return files.map((file) => `${WORKSPACE_ROOT}/${relativePathFor(file)}`);
 }
 
 function fileRelativePath(file: File): string {

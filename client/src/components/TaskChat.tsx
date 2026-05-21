@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo, Fragment } from 'react';
 import { ArrowUp, Loader2, ChevronDown, ChevronRight, Check, Terminal, FileText, FilePenLine, Globe, Code, Wrench, X, Target } from 'lucide-react';
 import { InputToolbar, ContextRing } from './InputToolbar';
+import { AttachButton, AttachDropOverlay, AttachmentTray, UploadErrorBar } from './ChatAttachments';
 import { MarkdownContent } from './MarkdownContent';
 import { useChat, ToolProgressEvent } from '../hooks/useChat';
 import { useAgentConfig } from '../hooks/useAgentConfig';
+import { useFileAttachments } from '../hooks/useFileAttachments';
 import { handleChatKeyDown, toggleRunMode } from '../lib/keyboard';
 import { compactTask, type AgentRunSettings } from '../lib/api';
 import { useStore } from '../lib/store';
@@ -211,6 +213,7 @@ export function TaskChat({ taskId, initialMessage, initialSettings }: TaskChatPr
   const [queuedSendError, setQueuedSendError] = useState<string | null>(null);
   const [autoSendingQueuedId, setAutoSendingQueuedId] = useState<string | null>(null);
   const [outgoingRevealActive, setOutgoingRevealActive] = useState(false);
+  const { pendingFiles, dragOver, uploadError, setUploadError, addFiles, removeFile, clearFiles, submitWithAttachments, dragHandlers, handlePaste } = useFileAttachments();
   const startupRef = useRef({ taskId, initialMessage, initialSettings });
   if (startupRef.current.taskId !== taskId) {
     startupRef.current = { taskId, initialMessage, initialSettings };
@@ -275,6 +278,8 @@ export function TaskChat({ taskId, initialMessage, initialSettings }: TaskChatPr
     setAutoSendingQueuedId(null);
     setRunMode(startupRef.current.initialSettings?.mode ?? 'task');
     setOutgoingRevealActive(false);
+    setUploadError(null);
+    clearFiles();
     lastGoalStatusRef.current = null;
     queuedMessageRef.current = null;
     pendingAutoSendRef.current = null;
@@ -300,7 +305,7 @@ export function TaskChat({ taskId, initialMessage, initialSettings }: TaskChatPr
         setLoadedTaskId(taskId);
       });
     return () => { cancelled = true; };
-  }, [taskId, loadMessages, sendMessage]);
+  }, [taskId, loadMessages, sendMessage, clearFiles]);
 
   useEffect(() => {
     if (!configPending) inputRef.current?.focus();
@@ -371,14 +376,18 @@ export function TaskChat({ taskId, initialMessage, initialSettings }: TaskChatPr
 
   const handleSubmit = useCallback(async () => {
     const text = input.trim();
-    if (!text || configPending) return;
+    const hasFiles = pendingFiles.length > 0;
+    if ((!text && !hasFiles) || configPending) return;
     if (queuedMessage) return;
+
+    const messageText = await submitWithAttachments(taskId, text);
+    if (messageText === null) return;
 
     const settings = { model, reasoningEffort, mode: isGoalStreaming ? 'task' : runMode };
     if (taskBusyForQueue) {
       setQueuedMessage({
         id: crypto.randomUUID(),
-        content: text,
+        content: messageText,
         settings,
       });
       setQueuedSendError(null);
@@ -389,13 +398,13 @@ export function TaskChat({ taskId, initialMessage, initialSettings }: TaskChatPr
     setInput('');
     pendingRevealRef.current = true;
     setOutgoingRevealActive(true);
-    const result = await sendMessage(taskId, text, settings);
+    const result = await sendMessage(taskId, messageText, settings);
     if (!result.ok && result.conflict) {
       pendingRevealRef.current = false;
       setOutgoingRevealActive(false);
       setInput(text);
     }
-  }, [configPending, input, queuedMessage, model, reasoningEffort, runMode, isGoalStreaming, taskBusyForQueue, sendMessage, taskId]);
+  }, [submitWithAttachments, configPending, input, pendingFiles, queuedMessage, model, reasoningEffort, runMode, isGoalStreaming, taskBusyForQueue, sendMessage, taskId]);
 
   const handleCompact = useCallback(async () => {
     if (compactionBlocker || isStreaming) return;
@@ -441,7 +450,11 @@ export function TaskChat({ taskId, initialMessage, initialSettings }: TaskChatPr
   const isLoadingMessages = loadedTaskId !== taskId;
 
   return (
-    <div className="flex w-full flex-col flex-1 min-h-0">
+    <div
+      className="relative flex w-full flex-col flex-1 min-h-0"
+      {...dragHandlers}
+    >
+      {dragOver && <AttachDropOverlay />}
       <div className="relative flex-1 min-h-0">
         <div
           ref={messagesContainerRef}
@@ -556,11 +569,14 @@ export function TaskChat({ taskId, initialMessage, initialSettings }: TaskChatPr
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             disabled={configPending}
             placeholder={runMode === 'goal' ? GOAL_MODE_PLACEHOLDER : 'Message your assistant...'}
             rows={2}
             className="w-full resize-none bg-transparent px-4 pt-3 pb-1 text-sm leading-relaxed text-zinc-900 placeholder-zinc-400 focus:outline-none disabled:opacity-60 dark:text-zinc-100 dark:placeholder-zinc-500 sm:px-5"
           />
+          <AttachmentTray files={pendingFiles} onRemove={removeFile} />
+          {uploadError && <UploadErrorBar error={uploadError} onDismiss={() => setUploadError(null)} />}
           {queuedMessage && (
             <QueuedMessageBar
               queuedMessage={queuedMessage}
@@ -573,17 +589,20 @@ export function TaskChat({ taskId, initialMessage, initialSettings }: TaskChatPr
             />
           )}
           <div className="flex items-end justify-between gap-3 px-3 pb-3 sm:px-4">
-            <InputToolbar
-              model={model}
-              reasoningEffort={reasoningEffort}
-              runMode={runMode}
-              defaults={toolbarDefaults}
-              modelGroups={modelGroups}
-              disabled={goalToggleDisabled}
-              onModelChange={setModel}
-              onReasoningEffortChange={setReasoningEffort}
-              onRunModeChange={setRunMode}
-            />
+            <div className="flex min-w-0 items-center gap-2">
+              <AttachButton onFiles={addFiles} disabled={configPending} />
+              <InputToolbar
+                model={model}
+                reasoningEffort={reasoningEffort}
+                runMode={runMode}
+                defaults={toolbarDefaults}
+                modelGroups={modelGroups}
+                disabled={goalToggleDisabled}
+                onModelChange={setModel}
+                onReasoningEffortChange={setReasoningEffort}
+                onRunModeChange={setRunMode}
+              />
+            </div>
             <div className="flex items-center gap-2">
               {context && (
                 <ContextRing
@@ -595,7 +614,7 @@ export function TaskChat({ taskId, initialMessage, initialSettings }: TaskChatPr
               )}
               <button
                 onClick={handleSubmit}
-                disabled={!input.trim() || configPending || queuedMessage !== null}
+                disabled={(!input.trim() && pendingFiles.length === 0) || configPending || queuedMessage !== null}
                 className="p-2 rounded-full bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 disabled:opacity-30 hover:bg-zinc-700 dark:hover:bg-zinc-300 transition-colors"
               >
                 <ArrowUp size={14} />

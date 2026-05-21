@@ -39,6 +39,7 @@ import {
   readFile,
   renameFileEntry,
   uploadFileEntries,
+  WORKSPACE_ROOT,
   writeFile,
 } from '../lib/api';
 import { formatBytes, formatDate, toErrorMessage } from '../lib/format';
@@ -46,7 +47,6 @@ import { isEditableTarget } from '../lib/keyboard';
 import { CsvEditor } from './CsvEditor';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
 
-const DEFAULT_FILE_BROWSER_PATH = '~/.minions/workspace';
 const FILE_LIST_GRID = 'grid-cols-[minmax(180px,1fr)_140px_90px_130px] max-md:grid-cols-[minmax(0,1fr)_84px]';
 
 type DeleteDialog = {
@@ -72,7 +72,7 @@ export function FileBrowserPage() {
   const inlineNameInputRef = useRef<HTMLInputElement>(null);
   const fileListScrollTopRef = useRef(0);
   const [directory, setDirectory] = useState<FileListResponse | null>(null);
-  const [pathInput, setPathInput] = useState(DEFAULT_FILE_BROWSER_PATH);
+  const [pathInput, setPathInput] = useState(WORKSPACE_ROOT);
   const [selectedEntry, setSelectedEntry] = useState<FileEntry | null>(null);
   const [openFile, setOpenFile] = useState<FileReadResponse | null>(null);
   const [content, setContent] = useState('');
@@ -152,7 +152,7 @@ export function FileBrowserPage() {
   }, [applyOpenFile]);
 
   useEffect(() => {
-    loadDirectory(DEFAULT_FILE_BROWSER_PATH).catch(() => undefined);
+    loadDirectory(WORKSPACE_ROOT).catch(() => undefined);
   }, [loadDirectory]);
 
   useEffect(() => {
@@ -321,12 +321,12 @@ export function FileBrowserPage() {
 
   async function handlePathSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const targetPath = pathInput.trim() || DEFAULT_FILE_BROWSER_PATH;
+    const targetPath = pathInput.trim() || WORKSPACE_ROOT;
     await navigateToDirectory(targetPath);
   }
 
   function resetPathInput() {
-    setPathInput(directory?.path ?? DEFAULT_FILE_BROWSER_PATH);
+    setPathInput(directory?.path ?? WORKSPACE_ROOT);
   }
 
   function handleCloseEditor() {

@@ -2,10 +2,12 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowUp, Loader2 } from 'lucide-react';
 import { InputToolbar } from './InputToolbar';
+import { AttachButton, AttachDropOverlay, AttachmentTray, UploadErrorBar } from './ChatAttachments';
 import { createTask } from '../lib/api';
 import { useAgentConfig } from '../hooks/useAgentConfig';
+import { useFileAttachments } from '../hooks/useFileAttachments';
 import { isEditableTarget, handleChatKeyDown, toggleRunMode } from '../lib/keyboard';
-import { GOAL_MODE_PLACEHOLDER } from '../lib/format';
+import { GOAL_MODE_PLACEHOLDER, toErrorMessage } from '../lib/format';
 import type { ChatRunMode } from '@shared/types';
 
 export function NewTaskPage() {
@@ -14,6 +16,7 @@ export function NewTaskPage() {
   const [runMode, setRunMode] = useState<ChatRunMode>('task');
   const [isCreating, setIsCreating] = useState(false);
   const { defaults, modelGroups, model, setModel, reasoningEffort, setReasoningEffort, isLoading } = useAgentConfig();
+  const { pendingFiles, dragOver, uploadError, setUploadError, addFiles, removeFile, submitWithAttachments, dragHandlers, handlePaste } = useFileAttachments();
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -30,20 +33,30 @@ export function NewTaskPage() {
 
   const handleSubmit = useCallback(async () => {
     const text = input.trim();
-    if (!text || isCreating || (!defaults && isLoading)) return;
+    const hasFiles = pendingFiles.length > 0;
+    if ((!text && !hasFiles) || isCreating || (!defaults && isLoading)) return;
+
     setIsCreating(true);
+    setUploadError(null);
     try {
-      const { task } = await createTask(text);
+      const description = text || pendingFiles.map((f) => f.file.name).join(', ');
+      const { task } = await createTask(description);
+      const initialMessage = await submitWithAttachments(task.id, text);
+      if (initialMessage === null) {
+        setIsCreating(false);
+        return;
+      }
       navigate(`/tasks/${task.id}`, {
         state: {
-          initialMessage: text,
+          initialMessage,
           initialSettings: { model, reasoningEffort, mode: runMode },
         },
       });
-    } catch {
+    } catch (err) {
+      setUploadError(toErrorMessage(err, 'Failed to create task'));
       setIsCreating(false);
     }
-  }, [defaults, input, isCreating, isLoading, model, navigate, reasoningEffort, runMode]);
+  }, [defaults, input, isCreating, isLoading, model, navigate, pendingFiles, reasoningEffort, runMode, submitWithAttachments, setUploadError]);
 
   const handleToggleGoalMode = useCallback(() => setRunMode(toggleRunMode), []);
 
@@ -56,7 +69,8 @@ export function NewTaskPage() {
   );
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center px-6 pb-24">
+    <div className="relative flex-1 flex flex-col items-center justify-center px-6 pb-24" {...dragHandlers}>
+      {dragOver && <AttachDropOverlay />}
       <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100 mb-6">
         What do you need done?
       </h1>
@@ -68,25 +82,31 @@ export function NewTaskPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             placeholder={runMode === 'goal' ? GOAL_MODE_PLACEHOLDER : 'Describe your task in detail...'}
             rows={4}
             className="w-full resize-none bg-transparent px-5 pt-4 pb-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none leading-relaxed"
           />
-          <div className="flex items-center justify-between px-4 pb-3">
-            <InputToolbar
-              model={model}
-              reasoningEffort={reasoningEffort}
-              runMode={runMode}
-              defaults={defaults}
-              modelGroups={modelGroups}
-              disabled={isCreating}
-              onModelChange={setModel}
-              onReasoningEffortChange={setReasoningEffort}
-              onRunModeChange={setRunMode}
-            />
+          <AttachmentTray files={pendingFiles} onRemove={removeFile} />
+          {uploadError && <UploadErrorBar error={uploadError} onDismiss={() => setUploadError(null)} />}
+          <div className="flex items-center justify-between gap-3 px-4 pb-3">
+            <div className="flex min-w-0 items-center gap-2">
+              <AttachButton onFiles={addFiles} disabled={isCreating} />
+              <InputToolbar
+                model={model}
+                reasoningEffort={reasoningEffort}
+                runMode={runMode}
+                defaults={defaults}
+                modelGroups={modelGroups}
+                disabled={isCreating}
+                onModelChange={setModel}
+                onReasoningEffortChange={setReasoningEffort}
+                onRunModeChange={setRunMode}
+              />
+            </div>
             <button
               onClick={handleSubmit}
-              disabled={!input.trim() || isCreating || (!defaults && isLoading)}
+              disabled={(!input.trim() && pendingFiles.length === 0) || isCreating || (!defaults && isLoading)}
               className="p-2.5 rounded-full bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 disabled:opacity-30 hover:bg-zinc-700 dark:hover:bg-zinc-300 transition-colors"
             >
               {isCreating ? (

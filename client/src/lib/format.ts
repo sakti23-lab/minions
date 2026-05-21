@@ -29,6 +29,13 @@ export function formatBytes(value: number | null): string {
   return `${size >= 10 ? size.toFixed(0) : size.toFixed(1)} ${units[unitIndex]}`;
 }
 
+/** Appends uploaded file paths to a chat message so the agent can read them from disk. */
+export function attachmentMessage(text: string, filePaths: string[]): string {
+  if (filePaths.length === 0) return text;
+  const block = `\n\n[Attached files:\n${filePaths.map((p) => `- ${p}`).join('\n')}]`;
+  return text ? text + block : `Please review these files.${block}`;
+}
+
 export function formatTokenCount(n: number): string {
   if (n < 1000) return `${n}`;
   if (n < 100_000) return `${(n / 1000).toFixed(1)}K`;
