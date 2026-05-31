@@ -47,6 +47,7 @@ import { formatBytes, formatDate, toErrorMessage } from '../lib/format';
 import { isEditableTarget } from '../lib/keyboard';
 import { CsvEditor } from './CsvEditor';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
+import { MarkdownContent } from './MarkdownContent';
 
 const FILE_LIST_GRID = 'grid-cols-[minmax(180px,1fr)_140px_90px_130px] max-md:grid-cols-[minmax(0,1fr)_84px]';
 
@@ -1011,6 +1012,8 @@ function EditorView({
   saveRef.current = onSave;
   canSaveRef.current = dirty && !saving;
 
+  const [preview, setPreview] = useState(true);
+
   useEffect(() => {
     const handler = (event: globalThis.KeyboardEvent) => {
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
@@ -1082,6 +1085,17 @@ function EditorView({
             {saving ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
             {conflict ? 'Overwrite' : 'Save'}
           </button>
+          {isMarkdownFile(file.name) && !conflict && (
+            <button
+              type="button"
+              onClick={() => setPreview((p) => !p)}
+              title={preview ? 'Edit raw markdown' : 'Preview rendered'}
+              className="inline-flex h-8 items-center gap-2 rounded-lg border border-zinc-300 bg-white px-3 text-sm font-medium text-zinc-700 shadow-sm transition-colors hover:bg-zinc-50 hover:text-zinc-950 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+            >
+              {preview ? <Pencil size={14} /> : <FileText size={14} />}
+              {preview ? 'Edit' : 'Preview'}
+            </button>
+          )}
           <span className="mx-1 h-6 w-px bg-zinc-200 dark:bg-zinc-700" />
           <button
             type="button"
@@ -1105,6 +1119,10 @@ function EditorView({
 
       {isCsvFile(file.name) ? (
         <CsvEditor content={content} onContentChange={onContentChange} />
+      ) : isMarkdownFile(file.name) && preview ? (
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+          <MarkdownContent content={content} />
+        </div>
       ) : (
         <textarea
           value={content}
@@ -1341,6 +1359,11 @@ function pluralize(count: number, singular: string): string {
 
 function isCsvFile(name: string): boolean {
   return fileExtension(name) === 'csv';
+}
+
+function isMarkdownFile(name: string): boolean {
+  const ext = fileExtension(name);
+  return ext === 'md' || ext === 'markdown';
 }
 
 function isSameOrChildPath(parentPath: string, childPath: string): boolean {
