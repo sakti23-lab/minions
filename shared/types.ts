@@ -308,6 +308,8 @@ export interface SkillMeta {
   source: string;
   provider?: string;
   registrySlug?: string;
+  registryOwnerHandle?: string;
+  sourceUrl?: string;
   version?: string;
   installedAt?: string;
 }
@@ -327,6 +329,8 @@ export interface ClawHubStats {
 
 export interface ClawHubSkillSummary {
   slug: string;
+  ownerHandle?: string | null;
+  sourceUrl?: string | null;
   displayName: string;
   summary: string;
   version?: string | null;

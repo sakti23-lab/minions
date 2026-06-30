@@ -184,7 +184,7 @@ export function deleteSkill(id: string) {
   });
 }
 
-export function installSkill(input: { provider?: 'clawhub'; slug: string; version?: string; force?: boolean }) {
+export function installSkill(input: { provider?: 'clawhub'; slug: string; ownerHandle?: string | null; version?: string; force?: boolean }) {
   return request<SkillInstallResult>('/skills/install', {
     method: 'POST',
     body: JSON.stringify(input),
@@ -219,13 +219,21 @@ export function browseClawHubSkills(limit = 24): Promise<ClawHubSkillSummary[]> 
   return request<{ skills: ClawHubSkillSummary[] }>(`/skills/registry/browse?limit=${limit}`).then((res) => res.skills);
 }
 
-export function fetchClawHubSkillContent(slug: string, version?: string | null): Promise<string> {
-  const suffix = version ? `?version=${encodeURIComponent(version)}` : '';
+export function fetchClawHubSkillContent(slug: string, version?: string | null, ownerHandle?: string | null): Promise<string> {
+  const params = new URLSearchParams();
+  if (version) params.set('version', version);
+  if (ownerHandle) params.set('ownerHandle', ownerHandle);
+  const query = params.toString();
+  const suffix = query ? `?${query}` : '';
   return request<{ content: string }>(`/skills/registry/${encodeURIComponent(slug)}/content${suffix}`).then((res) => res.content);
 }
 
-export function fetchClawHubSkillScan(slug: string, version?: string | null): Promise<ClawHubScanResult> {
-  const suffix = version ? `?version=${encodeURIComponent(version)}` : '';
+export function fetchClawHubSkillScan(slug: string, version?: string | null, ownerHandle?: string | null): Promise<ClawHubScanResult> {
+  const params = new URLSearchParams();
+  if (version) params.set('version', version);
+  if (ownerHandle) params.set('ownerHandle', ownerHandle);
+  const query = params.toString();
+  const suffix = query ? `?${query}` : '';
   return request<ClawHubScanResult>(`/skills/registry/${encodeURIComponent(slug)}/scan${suffix}`);
 }
 

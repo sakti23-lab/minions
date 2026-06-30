@@ -42,6 +42,7 @@ interface Frontmatter {
 interface MinionsSkillSidecar {
   provider?: string;
   registrySlug?: string;
+  registryOwnerHandle?: string;
   version?: string;
   displayName?: string;
   summary?: string;
@@ -108,6 +109,16 @@ function ensureSafeSlug(value: unknown): string {
     throw new RouteError(400, 'Invalid ClawHub skill slug.', 'INVALID_SKILL_SLUG');
   }
   return slug;
+}
+
+function optionalSafeOwnerHandle(value: unknown): string | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  return ensureSafeSlug(value);
+}
+
+function clawHubSkillUrl(slug: string, ownerHandle?: string): string | undefined {
+  if (!ownerHandle) return undefined;
+  return `https://clawhub.ai/${encodeURIComponent(ownerHandle)}/skills/${encodeURIComponent(slug)}`;
 }
 
 function clampLimit(value: unknown, fallback: number, max = 100): number {
@@ -263,6 +274,7 @@ async function readInstalledSkill(skillFile: string, root = resolveMinionsSkills
   const fallbackName = basename(skillDir);
   const provider = sidecar?.provider;
   const registrySlug = sidecar?.registrySlug ?? (id.startsWith('clawhub/') ? id.slice('clawhub/'.length).split('/')[0] : undefined);
+  const registryOwnerHandle = sidecar?.registryOwnerHandle;
 
   return {
     id,
@@ -272,6 +284,8 @@ async function readInstalledSkill(skillFile: string, root = resolveMinionsSkills
     source: provider === 'clawhub' ? 'ClawHub' : 'Local',
     provider,
     registrySlug,
+    registryOwnerHandle,
+    sourceUrl: sidecar?.sourceUrl,
     version: sidecar?.version,
     installedAt: sidecar?.installedAt,
   };
@@ -359,26 +373,34 @@ function statsValue(value: unknown): ClawHubStats | null {
   return {
     installsAllTime: numberValue(value.installsAllTime),
     downloads: numberValue(value.downloads),
-    installsCurrent: numberValue(value.installsCurrent),
+    installsCurrent: numberValue(value.installsCurrent) ?? numberValue(value.installs),
     stars: numberValue(value.stars),
   };
 }
 
 function skillSummaryValue(value: unknown): ClawHubSkillSummary | null {
   if (!isRecord(value)) return null;
-  const slug = stringValue(value.slug);
+  const slug = stringValue(value.slug) ?? stringValue(value.name);
   if (!slug) return null;
 
   const tags = isRecord(value.tags) ? value.tags : undefined;
+  const owner = isRecord(value.owner) ? value.owner : undefined;
+  const ownerHandle = stringValue(value.ownerHandle) ?? stringValue(owner?.handle);
   const latestVersion = isRecord(value.latestVersion) ? value.latestVersion : undefined;
+  const stats = statsValue(value.stats) ?? statsValue({
+    downloads: value.downloads,
+    stars: value.stars,
+  });
   return {
     slug,
+    ownerHandle: ownerHandle ?? null,
+    sourceUrl: clawHubSkillUrl(slug, ownerHandle) ?? null,
     displayName: stringValue(value.displayName) || stringValue(value.name) || slug,
     summary: stringValue(value.summary) || stringValue(value.description) || '',
     version: stringValue(value.version) ?? null,
-    latestVersion: stringValue(latestVersion?.version) ?? stringValue(tags?.latest) ?? null,
+    latestVersion: stringValue(latestVersion?.version) ?? stringValue(value.latestVersion) ?? stringValue(tags?.latest) ?? null,
     updatedAt: numberValue(value.updatedAt) ?? null,
-    stats: statsValue(value.stats),
+    stats,
   };
 }
 
@@ -390,7 +412,8 @@ function registrySummaries(data: unknown): ClawHubSkillSummary[] {
       ? data.items
       : [];
   return list.flatMap((item) => {
-    const summary = skillSummaryValue(item);
+    const value = isRecord(item) && isRecord(item.package) ? item.package : item;
+    const summary = skillSummaryValue(value);
     return summary ? [summary] : [];
   });
 }
@@ -441,10 +464,11 @@ function fileEntriesFromPayload(payload: unknown): ClawHubFileEntry[] {
   });
 }
 
-async function fetchClawHubFile(slug: string, filePath: string, version: string): Promise<Buffer> {
+async function fetchClawHubFile(slug: string, filePath: string, version: string, ownerHandle?: string): Promise<Buffer> {
   const url = new URL(`${CLAWHUB_API_BASE}/skills/${encodeURIComponent(slug)}/file`);
   url.searchParams.set('path', filePath);
   url.searchParams.set('version', version);
+  if (ownerHandle) url.searchParams.set('ownerHandle', ownerHandle);
 
   const response = await fetch(url, { headers: { accept: '*/*' } });
   if (!response.ok) {
@@ -459,11 +483,12 @@ async function fetchClawHubFile(slug: string, filePath: string, version: string)
   return Buffer.from(await response.arrayBuffer());
 }
 
-async function fetchClawHubSkillMarkdown(slug: string, version: string | undefined): Promise<string> {
+async function fetchClawHubSkillMarkdown(slug: string, version: string | undefined, ownerHandle?: string): Promise<string> {
   const url = new URL(`${CLAWHUB_API_BASE}/skills/${encodeURIComponent(slug)}/file`);
   url.searchParams.set('path', 'SKILL.md');
   if (version) url.searchParams.set('version', version);
   else url.searchParams.set('tag', 'latest');
+  if (ownerHandle) url.searchParams.set('ownerHandle', ownerHandle);
 
   const response = await fetch(url, { headers: { accept: 'text/markdown, text/plain, */*' } });
   if (!response.ok) {
@@ -617,7 +642,7 @@ async function uploadedSkillFilesFromRequest(uploadedFiles: Express.Multer.File[
   return prepareSkillFiles(files);
 }
 
-async function downloadClawHubFiles(slug: string, version: string, versionPayload: unknown): Promise<Map<string, Buffer>> {
+async function downloadClawHubFiles(slug: string, version: string, versionPayload: unknown, ownerHandle?: string): Promise<Map<string, Buffer>> {
   let entries = fileEntriesFromPayload(versionPayload);
   if (entries.length === 0) entries = [{ path: 'SKILL.md' }];
   if (entries.length > MAX_SKILL_FILES) {
@@ -633,7 +658,7 @@ async function downloadClawHubFiles(slug: string, version: string, versionPayloa
 
     const content = entry.content !== undefined
       ? Buffer.from(entry.content, 'utf8')
-      : await fetchClawHubFile(slug, relPath, version);
+      : await fetchClawHubFile(slug, relPath, version, ownerHandle);
 
     assertFileSize(relPath, content.byteLength);
     totalBytes += content.byteLength;
@@ -735,13 +760,15 @@ async function writeSkillFiles(destination: string, files: Map<string, Buffer>, 
   }
 }
 
-async function installClawHubSkill(slug: string, requestedVersion: string | undefined, force: boolean): Promise<{
+async function installClawHubSkill(slug: string, ownerHandle: string | undefined, requestedVersion: string | undefined, force: boolean): Promise<{
   skill: SkillMeta;
   installed: boolean;
   alreadyInstalled: boolean;
 }> {
   const skillsRoot = resolveMinionsSkillsDir();
-  const destination = resolve(skillsRoot, 'clawhub', slug);
+  const destination = ownerHandle
+    ? resolve(skillsRoot, 'clawhub', ownerHandle, slug)
+    : resolve(skillsRoot, 'clawhub', slug);
   ensureInside(skillsRoot, destination);
   await mkdir(dirname(destination), { recursive: true });
 
@@ -754,19 +781,25 @@ async function installClawHubSkill(slug: string, requestedVersion: string | unde
     };
   }
 
-  const detail = await fetchClawHubJson(`/skills/${encodeURIComponent(slug)}`);
+  const detail = await fetchClawHubJson(`/skills/${encodeURIComponent(slug)}`, ownerHandle ? { ownerHandle } : undefined);
+  const owner = isRecord(detail) && isRecord(detail.owner) ? detail.owner : undefined;
+  const resolvedOwnerHandle = ownerHandle ?? stringValue(owner?.handle);
   const version = resolveVersion(detail, requestedVersion);
-  const versionPayload = await fetchClawHubJson(`/skills/${encodeURIComponent(slug)}/versions/${encodeURIComponent(version)}`);
-  const files = await downloadClawHubFiles(slug, version, versionPayload);
+  const versionPayload = await fetchClawHubJson(
+    `/skills/${encodeURIComponent(slug)}/versions/${encodeURIComponent(version)}`,
+    ownerHandle ? { ownerHandle } : undefined,
+  );
+  const files = await downloadClawHubFiles(slug, version, versionPayload, ownerHandle);
   const skill = skillPayload(detail);
 
   const sidecar: MinionsSkillSidecar = {
     provider: 'clawhub',
     registrySlug: slug,
+    registryOwnerHandle: resolvedOwnerHandle,
     version,
     displayName: stringValue(skill.displayName) || slug,
     summary: stringValue(skill.summary) || '',
-    sourceUrl: `https://clawhub.ai/skills/${slug}`,
+    sourceUrl: clawHubSkillUrl(slug, resolvedOwnerHandle),
     installedAt: new Date().toISOString(),
   };
 
@@ -868,7 +901,7 @@ skillsRouter.get('/registry/search', async (req, res) => {
 skillsRouter.get('/registry/browse', async (req, res) => {
   try {
     const limit = clampLimit(req.query.limit, 24);
-    const data = await fetchClawHubJson('/skills', { sort: 'downloads', limit, nonSuspiciousOnly: true });
+    const data = await fetchClawHubJson('/packages', { family: 'skill', sort: 'downloads', limit });
     res.json({ skills: registrySummaries(data) });
   } catch (error) {
     sendError(res, error, 'Failed to load ClawHub skills');
@@ -878,7 +911,8 @@ skillsRouter.get('/registry/browse', async (req, res) => {
 skillsRouter.get('/registry/:slug/content', async (req, res) => {
   try {
     const slug = ensureSafeSlug(req.params.slug);
-    const content = await fetchClawHubSkillMarkdown(slug, stringValue(req.query.version));
+    const ownerHandle = optionalSafeOwnerHandle(req.query.ownerHandle);
+    const content = await fetchClawHubSkillMarkdown(slug, stringValue(req.query.version), ownerHandle);
     res.json({ content });
   } catch (error) {
     sendError(res, error, 'Failed to load ClawHub skill content');
@@ -888,10 +922,11 @@ skillsRouter.get('/registry/:slug/content', async (req, res) => {
 skillsRouter.get('/registry/:slug/scan', async (req, res) => {
   try {
     const slug = ensureSafeSlug(req.params.slug);
+    const ownerHandle = optionalSafeOwnerHandle(req.query.ownerHandle);
     const version = stringValue(req.query.version);
     const data = await fetchClawHubJson(
       `/skills/${encodeURIComponent(slug)}/scan`,
-      version ? { version } : { tag: 'latest' },
+      { ...(version ? { version } : { tag: 'latest' }), ownerHandle },
     );
     res.json(isRecord(data) ? data : {});
   } catch (error) {
@@ -920,9 +955,10 @@ skillsRouter.post('/install', async (req, res) => {
     }
 
     const slug = ensureSafeSlug(body.slug);
+    const ownerHandle = optionalSafeOwnerHandle(body.ownerHandle);
     const requestedVersion = stringValue(body.version);
     const force = body.force === true;
-    const result = await installClawHubSkill(slug, requestedVersion, force);
+    const result = await installClawHubSkill(slug, ownerHandle, requestedVersion, force);
 
     res.status(result.installed ? 201 : 200).json({
       skill: result.skill,
