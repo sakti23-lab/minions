@@ -42,7 +42,7 @@ import {
   type SkillMeta,
 } from '../lib/api';
 import type { ClawHubScanResult, ClawHubSkillSummary, ClawHubStats } from '@shared/types';
-import { toErrorMessage } from '../lib/format';
+import { stripFrontmatter, toErrorMessage } from '../lib/format';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
 import { usePageHeader, type PageHeaderConfig } from './Header';
 import { MarkdownContent } from './MarkdownContent';
@@ -62,11 +62,6 @@ const primaryButtonClass = 'bg-zinc-900 text-white transition-colors hover:bg-zi
 
 function isSkillMode(value: string | undefined): value is SkillMode {
   return value === 'browse' || value === 'installed';
-}
-
-function stripFrontmatter(content: string): string {
-  const match = /^---\n[\s\S]*?\n---\n?/.exec(content);
-  return match ? content.slice(match[0].length) : content;
 }
 
 function latestVersion(skill: ClawHubSkillSummary | null | undefined): string | null {

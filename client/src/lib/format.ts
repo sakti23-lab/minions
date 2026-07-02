@@ -14,6 +14,11 @@ export function toErrorMessage(error: unknown, fallback = 'Something went wrong'
   return error instanceof Error ? error.message : fallback;
 }
 
+export function stripFrontmatter(content: string): string {
+  const match = /^---\n[\s\S]*?\n---\n?/.exec(content);
+  return match ? content.slice(match[0].length) : content;
+}
+
 export function formatBytes(value: number | null): string {
   if (value == null) return '-';
   if (value < 1024) return `${value} B`;

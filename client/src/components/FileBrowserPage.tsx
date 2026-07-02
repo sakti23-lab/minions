@@ -43,7 +43,7 @@ import {
   WORKSPACE_ROOT,
   writeFile,
 } from '../lib/api';
-import { formatBytes, formatDate, toErrorMessage } from '../lib/format';
+import { formatBytes, formatDate, stripFrontmatter, toErrorMessage } from '../lib/format';
 import { isEditableTarget } from '../lib/keyboard';
 import { CsvEditor } from './CsvEditor';
 import { DeleteConfirmModal } from './DeleteConfirmModal';
@@ -1119,9 +1119,9 @@ function EditorView({
 
       {isCsvFile(file.name) ? (
         <CsvEditor content={content} onContentChange={onContentChange} />
-      ) : isMarkdownFile(file.name) && preview ? (
+      ) : isMarkdownFile(file.name) && preview && !conflict ? (
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-          <MarkdownContent content={content} />
+          <MarkdownContent content={stripFrontmatter(content)} />
         </div>
       ) : (
         <textarea
