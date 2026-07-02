@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
-import { SquarePen, Columns3, Settings, PanelLeftClose, PanelLeft, Repeat, Sparkles, Folder, TerminalSquare } from 'lucide-react';
+import { SquarePen, Columns3, Settings, PanelLeftClose, PanelLeft, Repeat, Sparkles, Folder } from 'lucide-react';
 import { useStore } from '../lib/store';
 import { isEditableTarget } from '../lib/keyboard';
 
@@ -165,14 +165,6 @@ export function Sidebar() {
               label="Skills"
               to="/skills/browse"
               active={location.pathname === '/skills' || location.pathname.startsWith('/skills/')}
-              collapsed={desktopCollapsed}
-              subdued
-            />
-            <SidebarLink
-              icon={<TerminalSquare size={18} />}
-              label="Terminal"
-              to="/terminal"
-              active={isActive('/terminal')}
               collapsed={desktopCollapsed}
               subdued
             />

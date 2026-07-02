@@ -78,7 +78,6 @@ export function Header() {
   const isScheduledTasks = location.pathname.startsWith('/scheduled-tasks') || location.pathname === '/cron';
   const isSkills = location.pathname === '/skills' || location.pathname.startsWith('/skills/');
   const isFiles = location.pathname === '/files';
-  const isTerminal = location.pathname === '/terminal';
 
   let title = 'Tasks';
   let showParent = false;
@@ -92,8 +91,6 @@ export function Header() {
     title = 'Skills';
   } else if (isFiles) {
     title = 'Files';
-  } else if (isTerminal) {
-    title = 'Terminal';
   } else if (isNewTask) {
     title = 'New Task';
     showParent = true;

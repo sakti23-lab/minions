@@ -73,6 +73,24 @@ function latestVersion(skill: ClawHubSkillSummary | null | undefined): string | 
   return skill?.latestVersion ?? skill?.version ?? null;
 }
 
+function clawHubSkillUrl(slug: string | null | undefined, ownerHandle?: string | null, sourceUrl?: string | null): string | null {
+  if (!slug) return null;
+  if (ownerHandle) {
+    return `https://clawhub.ai/${encodeURIComponent(ownerHandle)}/skills/${encodeURIComponent(slug)}`;
+  }
+  if (sourceUrl && !sourceUrl.includes('clawhub.ai/skills/')) return sourceUrl;
+  return null;
+}
+
+function registrySkillKey(slug: string, ownerHandle?: string | null): string {
+  return ownerHandle ? `${ownerHandle}/${slug}` : slug;
+}
+
+function installedSkillKey(skill: SkillMeta): string | null {
+  if (skill.provider !== 'clawhub' || !skill.registrySlug) return null;
+  return registrySkillKey(skill.registrySlug, skill.registryOwnerHandle);
+}
+
 function formatNumber(value: number | null | undefined): string {
   if (value == null) return '0';
   return new Intl.NumberFormat(undefined, { notation: value >= 10000 ? 'compact' : 'standard' }).format(value);
@@ -317,22 +335,25 @@ function RegistrySkillCard({
 }) {
   const count = registryCountLabel(skill.stats);
   const version = latestVersion(skill);
+  const skillUrl = clawHubSkillUrl(skill.slug, skill.ownerHandle, skill.sourceUrl);
 
   return (
     <SkillCardShell onOpen={onOpen}>
       <div className="flex items-baseline gap-2">
         <h3 className="min-w-0 truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">{skill.displayName}</h3>
         <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">ClawHub</span>
-        <a
-          href={`https://clawhub.ai/skills/${encodeURIComponent(skill.slug)}`}
-          target="_blank"
-          rel="noreferrer"
-          title="Open in ClawHub"
-          onClick={stopCardClick}
-          className="ml-auto flex size-6 shrink-0 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
-        >
-          <ExternalLink size={13} />
-        </a>
+        {skillUrl && (
+          <a
+            href={skillUrl}
+            target="_blank"
+            rel="noreferrer"
+            title="Open in ClawHub"
+            onClick={stopCardClick}
+            className="ml-auto flex size-6 shrink-0 items-center justify-center rounded-md text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+          >
+            <ExternalLink size={13} />
+          </a>
+        )}
       </div>
       <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-zinc-600 dark:text-zinc-400">
         {skill.summary || 'No description provided.'}
@@ -386,6 +407,8 @@ function InstalledSkillCard({
   onOpen: () => void;
   onDelete: () => void;
 }) {
+  const skillUrl = clawHubSkillUrl(skill.registrySlug, skill.registryOwnerHandle, skill.sourceUrl);
+
   return (
     <SkillCardShell onOpen={onOpen}>
       <div className="flex items-baseline gap-2">
@@ -403,9 +426,9 @@ function InstalledSkillCard({
         >
           {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
         </button>
-        {skill.registrySlug && (
+        {skillUrl && (
           <a
-            href={`https://clawhub.ai/skills/${encodeURIComponent(skill.registrySlug)}`}
+            href={skillUrl}
             target="_blank"
             rel="noreferrer"
             title="Open in ClawHub"
@@ -664,6 +687,9 @@ function SkillPreviewModal({
   const version = isRegistry ? latestVersion(preview.skill) : preview.skill.version;
   const count = isRegistry ? registryCountLabel(preview.skill.stats) : null;
   const scanInfo = scanDisplay(scan);
+  const skillUrl = isRegistry
+    ? clawHubSkillUrl(preview.skill.slug, preview.skill.ownerHandle, preview.skill.sourceUrl)
+    : null;
 
   return (
     <div
@@ -689,9 +715,9 @@ function SkillPreviewModal({
               </p>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              {isRegistry && (
+              {isRegistry && skillUrl && (
                 <a
-                  href={`https://clawhub.ai/skills/${encodeURIComponent(preview.skill.slug)}`}
+                  href={skillUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-zinc-200 px-3 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-50 hover:text-zinc-900 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
@@ -808,7 +834,7 @@ export function SkillsPage() {
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewViewMode, setPreviewViewMode] = useState<ViewMode>('view');
-  const [installingSlug, setInstallingSlug] = useState<string | null>(null);
+  const [installingKey, setInstallingKey] = useState<string | null>(null);
   const [skillToDelete, setSkillToDelete] = useState<SkillMeta | null>(null);
   const [deletingSkillId, setDeletingSkillId] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -837,10 +863,11 @@ export function SkillsPage() {
   }), [headerActions, mode]);
   usePageHeader(headerConfig);
 
-  const installedSlugs = useMemo(() => (
-    new Set(installedSkills.flatMap((skill) => (
-      skill.provider === 'clawhub' && skill.registrySlug ? [skill.registrySlug] : []
-    )))
+  const installedKeys = useMemo(() => (
+    new Set(installedSkills.flatMap((skill) => {
+      const key = installedSkillKey(skill);
+      return key ? [key] : [];
+    }))
   ), [installedSkills]);
 
   const filteredInstalledSkills = useMemo(() => {
@@ -922,10 +949,10 @@ export function SkillsPage() {
     setPreviewError(null);
 
     if (preview.type === 'registry') {
-      const { slug } = preview.skill;
+      const { slug, ownerHandle } = preview.skill;
       Promise.all([
-        fetchClawHubSkillContent(slug),
-        fetchClawHubSkillScan(slug).catch(() => null),
+        fetchClawHubSkillContent(slug, undefined, ownerHandle),
+        fetchClawHubSkillScan(slug, undefined, ownerHandle).catch(() => null),
       ])
         .then(([content, scanResult]) => {
           if (cancelled) return;
@@ -955,11 +982,11 @@ export function SkillsPage() {
   }, [preview]);
 
   async function handleInstall(skill: ClawHubSkillSummary, options: { openInstalledPreview?: boolean } = {}) {
-    if (installingSlug) return;
+    if (installingKey) return;
     const { openInstalledPreview = true } = options;
-    setInstallingSlug(skill.slug);
+    setInstallingKey(registrySkillKey(skill.slug, skill.ownerHandle));
     try {
-      const result = await installSkill({ provider: 'clawhub', slug: skill.slug, version: 'latest' });
+      const result = await installSkill({ provider: 'clawhub', slug: skill.slug, ownerHandle: skill.ownerHandle, version: 'latest' });
       toast(result.alreadyInstalled ? 'Skill already installed' : 'Skill installed');
       await loadInstalledSkills();
       if (openInstalledPreview) {
@@ -969,7 +996,7 @@ export function SkillsPage() {
     } catch (err) {
       toast.error(toErrorMessage(err, 'Failed to install skill'));
     } finally {
-      setInstallingSlug(null);
+      setInstallingKey(null);
     }
   }
 
@@ -1002,7 +1029,7 @@ export function SkillsPage() {
   const visibleSkills = mode === 'browse' ? registrySkills : filteredInstalledSkills;
   const topError = mode === 'browse' ? registryError : installedError;
   const isLoading = mode === 'browse' ? loadingRegistry : loadingInstalled;
-  const previewInstalled = preview?.type === 'registry' ? installedSlugs.has(preview.skill.slug) : true;
+  const previewInstalled = preview?.type === 'registry' ? installedKeys.has(registrySkillKey(preview.skill.slug, preview.skill.ownerHandle)) : true;
 
   return (
     <div className="flex-1 overflow-y-auto bg-zinc-50 dark:bg-zinc-950/20">
@@ -1055,11 +1082,11 @@ export function SkillsPage() {
 
           {mode === 'browse' && registrySkills.map((skill) => (
             <RegistrySkillCard
-              key={skill.slug}
+              key={registrySkillKey(skill.slug, skill.ownerHandle)}
               skill={skill}
-              installed={installedSlugs.has(skill.slug)}
-              installing={installingSlug === skill.slug}
-              installDisabled={installingSlug !== null}
+              installed={installedKeys.has(registrySkillKey(skill.slug, skill.ownerHandle))}
+              installing={installingKey === registrySkillKey(skill.slug, skill.ownerHandle)}
+              installDisabled={installingKey !== null}
               onOpen={() => setPreview({ type: 'registry', skill })}
               onInstall={() => void handleInstall(skill, { openInstalledPreview: false })}
             />
@@ -1095,7 +1122,7 @@ export function SkillsPage() {
         viewMode={previewViewMode}
         setViewMode={setPreviewViewMode}
         installed={previewInstalled}
-        installing={preview?.type === 'registry' && installingSlug === preview.skill.slug}
+        installing={preview?.type === 'registry' && installingKey === registrySkillKey(preview.skill.slug, preview.skill.ownerHandle)}
         onInstall={() => {
           if (preview?.type === 'registry') void handleInstall(preview.skill);
         }}
