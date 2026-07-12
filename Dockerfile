@@ -47,6 +47,9 @@ WORKDIR /app
 # Install runtime dependencies only
 RUN apk add --no-cache python3 sqlite dumb-init
 
+# Verify dumb-init installation location
+RUN which dumb-init && echo "dumb-init found at: $(which dumb-init)"
+
 # Copy package files
 COPY package.json package-lock.json* ./
 
@@ -73,8 +76,8 @@ EXPOSE 6969
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
   CMD node -e "require('http').get('http://localhost:6969', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})" || exit 1
 
-# Use dumb-init to handle signals properly
-ENTRYPOINT ["/usr/sbin/dumb-init", "--"]
+# Use dumb-init to handle signals properly (use command name instead of absolute path)
+ENTRYPOINT ["dumb-init", "--"]
 
 # Start the application
 CMD ["npm", "start"]
