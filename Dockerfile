@@ -1,5 +1,5 @@
 # Build stage
-FROM --platform=linux/amd64 node:18-alpine AS builder
+FROM node:18-alpine AS builder
 
 WORKDIR /app
 
@@ -19,7 +19,7 @@ COPY . .
 RUN npm run build
 
 # Test stage
-FROM --platform=linux/amd64 node:18-alpine AS tester
+FROM node:18-alpine AS tester
 
 WORKDIR /app
 
@@ -40,7 +40,7 @@ COPY --from=builder /app/dist ./dist
 RUN npm test
 
 # Production stage
-FROM --platform=linux/amd64 node:18-alpine
+FROM node:18-alpine
 
 WORKDIR /app
 
