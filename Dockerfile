@@ -44,8 +44,12 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Install runtime dependencies and dumb-init
-RUN apk add --no-cache python3 sqlite dumb-init
+# Install runtime dependencies
+RUN apk add --no-cache python3 sqlite
+
+# Install dumb-init from source
+RUN wget -O /usr/sbin/dumb-init https://github.com/Yelp/dumb-init/releases/download/v1.2.5/dumb-init_1.2.5_x86_64 && \
+    chmod +x /usr/sbin/dumb-init
 
 # Copy package files
 COPY package.json package-lock.json* ./
