@@ -45,7 +45,7 @@ FROM node:18-alpine
 WORKDIR /app
 
 # Install runtime dependencies only
-RUN apk add --no-cache python3 sqlite dumb-init
+RUN apk add --no-cache python3 sqlite tini
 
 # Copy package files
 COPY package.json package-lock.json* ./
@@ -73,8 +73,8 @@ EXPOSE 6969
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
   CMD node -e "require('http').get('http://localhost:6969', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})" || exit 1
 
-# Use dumb-init to handle signals properly
-ENTRYPOINT ["/usr/sbin/dumb-init", "--"]
+# Use tini to handle signals properly
+ENTRYPOINT ["/sbin/tini", "--"]
 
 # Start the application
 CMD ["npm", "start"]
