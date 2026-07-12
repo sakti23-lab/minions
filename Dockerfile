@@ -1,5 +1,5 @@
 # Build stage
-FROM node:18-alpine AS builder
+FROM --platform=linux/amd64 node:18-alpine AS builder
 
 WORKDIR /app
 
@@ -19,7 +19,7 @@ COPY . .
 RUN npm run build
 
 # Test stage
-FROM node:18-alpine AS tester
+FROM --platform=linux/amd64 node:18-alpine AS tester
 
 WORKDIR /app
 
@@ -40,16 +40,22 @@ COPY --from=builder /app/dist ./dist
 RUN npm test
 
 # Production stage
-FROM node:18-alpine
+FROM --platform=linux/amd64 node:18-alpine
 
 WORKDIR /app
 
 # Install runtime dependencies
-RUN apk add --no-cache python3 sqlite
+RUN apk add --no-cache python3 sqlite ca-certificates
 
-# Install dumb-init from source
-RUN wget -O /usr/sbin/dumb-init https://github.com/Yelp/dumb-init/releases/download/v1.2.5/dumb-init_1.2.5_x86_64 && \
-    chmod +x /usr/sbin/dumb-init
+# Install dumb-init with architecture detection
+RUN apk add --no-cache wget && \
+    ARCH=$(uname -m) && \
+    if [ "$ARCH" = "x86_64" ]; then DUMB_INIT_ARCH="x86_64"; \
+    elif [ "$ARCH" = "aarch64" ]; then DUMB_INIT_ARCH="aarch64"; \
+    else DUMB_INIT_ARCH="x86_64"; fi && \
+    wget -O /usr/sbin/dumb-init https://github.com/Yelp/dumb-init/releases/download/v1.2.5/dumb-init_1.2.5_${DUMB_INIT_ARCH} && \
+    chmod +x /usr/sbin/dumb-init && \
+    apk del wget
 
 # Copy package files
 COPY package.json package-lock.json* ./
