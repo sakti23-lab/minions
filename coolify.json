@@ -1,0 +1,48 @@
+{
+  "version": "1.0",
+  "name": "Minions AI",
+  "description": "Mission Control for Hermes agents - Kanban board for autonomous agent tasks",
+  "displayName": "Minions",
+  "tags": ["hermes", "agent", "kanban", "mission-control", "typescript"],
+  "ports": {
+    "6969": "HTTP"
+  },
+  "env": [
+    {
+      "key": "NODE_ENV",
+      "label": "Node Environment",
+      "default": "production",
+      "required": false
+    },
+    {
+      "key": "PORT",
+      "label": "Application Port",
+      "default": "6969",
+      "required": false
+    },
+    {
+      "key": "HERMES_URL",
+      "label": "Hermes Agent URL",
+      "default": "http://localhost:5000",
+      "required": false,
+      "description": "URL to your Hermes Agent instance"
+    },
+    {
+      "key": "HOST",
+      "label": "Server Host",
+      "default": "0.0.0.0",
+      "required": false
+    }
+  ],
+  "volumes": [
+    {
+      "source": "/app/data",
+      "destination": "minions-data",
+      "description": "Persistent data storage for SQLite database"
+    }
+  ],
+  "resources": {
+    "memory": "512MB",
+    "cpu": "0.5"
+  }
+}
